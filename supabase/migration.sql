@@ -17,7 +17,7 @@ create table if not exists public.holidays (
   source_payload jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (name, holiday_date, country_code)
+  unique (name, holiday_date, country_code, region)
 );
 
 create table if not exists public.holiday_cache_meta (

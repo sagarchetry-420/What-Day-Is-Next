@@ -3,6 +3,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const axios = require('axios');
 const { createClient } = require('@supabase/supabase-js');
+const { createMonthlyHolidayScheduler } = require('./holidaySync');
 
 dotenv.config();
 
@@ -247,3 +248,13 @@ setInterval(() => {
 app.listen(port, () => {
   console.log(`Holiday API server is running on port ${port}.`);
 });
+
+if (supabase && calendarificKey) {
+  const runSyncOnStart = process.env.HOLIDAY_SYNC_RUN_ON_START === 'true';
+  createMonthlyHolidayScheduler({
+    supabase,
+    apiKey: calendarificKey,
+    logger: console,
+    runOnStart: runSyncOnStart
+  });
+}

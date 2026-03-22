@@ -9,6 +9,7 @@ Production-ready React + Vite app with a secure Express backend for Calendarific
 - Worldwide holiday fetch for tomorrow via Calendarific API
 - Secure server-side API key usage (never exposed to browser)
 - Persistent daily cache in Supabase (fetch once/day, then serve DB data to all users)
+- Monthly scheduler (28th, UTC) to prefetch next-month worldwide holidays into Supabase
 - SEO meta tags and semantic HTML
 - Loading/error/empty states and API fallback handling
 - Code splitting with `React.lazy`
@@ -43,6 +44,18 @@ Production-ready React + Vite app with a secure Express backend for Calendarific
 - First request for a date fetches from Calendarific and writes DB row.
 - Any refresh or any other user request for the same date reads from DB only.
 - Next date causes a new one-time fetch and DB update for that date.
+
+## Monthly Background Sync
+- A cron job runs on the 28th of every month at 03:00 UTC: `0 3 28 * *`.
+- It fetches next month holidays country-by-country from Calendarific.
+- It waits ~1.5 seconds between country requests to reduce 429/rate-limit issues.
+- It maps:
+  - national holidays as `region = "All"`
+  - state/location holidays as separate rows per state/location code
+- Data is upserted into `holidays` using unique key:
+  - `(name, holiday_date, country_code, region)`
+- Optional startup sync:
+  - set `HOLIDAY_SYNC_RUN_ON_START=true`
 
 ## Supabase Schema
 Run `supabase/migration.sql` in your Supabase SQL editor. It creates:
