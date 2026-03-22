@@ -1,65 +1,88 @@
 # Tomorrow Holidays App
 
-Production-ready React + Vite app with a secure Express backend for Calendarific holiday data.
+## Project Overview
+`Tomorrow Holidays App` shows tomorrow’s weekday/date and relevant holidays for the user’s detected or manually selected location. It uses a React + Vite frontend and an Express backend that integrates with Calendarific and caches data in Supabase for reliability and API efficiency.
 
-## Features
-- Modern React functional components + hooks
-- Responsive, clean UI with subtle animations
-- Locale-accurate tomorrow day/date using `Intl`
-- Worldwide holiday fetch for tomorrow via Calendarific API
-- Secure server-side API key usage (never exposed to browser)
-- Persistent daily cache in Supabase (fetch once/day, then serve DB data to all users)
-- Monthly scheduler (28th, UTC) to prefetch next-month worldwide holidays into Supabase
-- SEO meta tags and semantic HTML
-- Loading/error/empty states and API fallback handling
-- Code splitting with `React.lazy`
+## Setup Instructions
+1. Install dependencies:
+`npm install`
+
+2. Configure environment variables:
+- Copy `.env.example` to `.env`
+- Set `calendarific_API_KEY`
+- Set `SUPABASE_URL`
+- Set `SUPABASE_SERVICE_ROLE_KEY`
+- Set `CORS_ORIGIN` for allowed frontend origin(s) in production (comma-separated if multiple)
+
+3. Start both backend and frontend in development:
+`npm run dev:all`
+
+4. Open:
+`http://localhost:5173`
+
+Production commands:
+- Build frontend: `npm run build`
+- Start server: `npm start`
+- Run tests: `npm test`
+
+## API Usage
+The backend exposes:
+- `GET /api/health`
+- `GET /api/holidays?date=YYYY-MM-DD&limit=...`
+- `GET /api/holidays/all`
+- `GET /api/holidays/verify`
+- `GET /api/holidays/tomorrow?date=YYYY-MM-DD`
+
+Request limits and optimization:
+- Calendarific monthly quota target: 500 requests (example usage noted at 300)
+- Server-side caching in Supabase prevents repeated upstream fetches for the same date
+- In-memory request deduplication avoids duplicate concurrent fetches
+- Frontend request caching/reuse reduces redundant API calls during session usage
+- Timeout + retry handling improves resilience under transient network issues
+- Rate limiting is applied on `/api/*` and returns `429` with `Retry-After`
+
+## Location Handling
+- Automatic detection: browser geolocation + reverse geocoding
+- Cached location reuse to reduce repeated lookups
+- Manual location search supports country and region/state selection
+- Country/region normalization is applied before holiday filtering
+
+## Testing Approach
+Black Box Testing:
+- Verified user-facing flow for auto detection, manual location selection, holiday rendering, loading/error/empty states, and responsive UI behavior
+
+White Box Testing:
+- Validated API integration and filtering logic for date/country/region combinations
+- Added unit tests for:
+  - `src/utils/date.test.js` (tomorrow/date conversion)
+  - `src/utils/holidayFilter.test.js` (country/region fallback and dedupe behavior)
+
+System Testing:
+- Validated end-to-end flow:
+  Location detection -> API request -> Supabase-backed data retrieval -> UI-ready filtering
+- Verified API behavior for health, valid requests, and invalid date handling
+
+## Build and Deployment
+- Build the frontend with `npm run build`.
+- Deploy static frontend (e.g., Vercel/Netlify) and run backend as Node service.
+- Ensure HTTPS is enabled at hosting/platform level.
+- Configure `CORS_ORIGIN` to only trusted frontend domains.
+- Provide required env vars from `.env.example` in host secrets.
+- Configure platform-level gzip/brotli and cache headers for static assets.
 
 ## Project Structure
-- `src/` React frontend
-- `server/` Express API
-- `vite.config.js` Vite config with `/api` proxy in dev
-- `.env` local secrets (not committed)
-- `.env.example` required env template
+- `src/` frontend React app
+- `server/` backend API and scheduled sync
+- `supabase/` schema/migration SQL
+- `vite.config.js` dev proxy and build config
 
-## Setup
-1. Install dependencies:
-   `npm install`
-2. Configure env:
-   - Copy `.env.example` to `.env`
-   - Add your real `calendarific_API_KEY`
-   - Add `SUPABASE_URL` and `SUPABASE_SERVICE_ROLE_KEY`
-3. Run backend + frontend together:
-   `npm run dev:all`
-4. Open:
-   `http://localhost:5173`
+## Known Limitations
+- Holiday coverage is dependent on Calendarific data availability per country/date
+- API rate limits still apply under extreme traffic, though caching reduces pressure
+- Some highly localized holidays may depend on source region metadata quality
+- Build currently reports a large bundle-size warning from Vite
+- Cross-browser validation should still be completed in staging before release
 
-## Production
-- Build frontend assets:
-  `npm run build`
-- Run API server:
-  `npm start`
-
-## Daily Cache Behavior
-- The API endpoint stores holidays by date in Supabase table `holiday_cache_meta`.
-- First request for a date fetches from Calendarific and writes DB row.
-- Any refresh or any other user request for the same date reads from DB only.
-- Next date causes a new one-time fetch and DB update for that date.
-
-## Monthly Background Sync
-- A cron job runs on the 28th of every month at 03:00 UTC: `0 3 28 * *`.
-- It fetches next month holidays country-by-country from Calendarific.
-- It waits ~1.5 seconds between country requests to reduce 429/rate-limit issues.
-- It maps:
-  - national holidays as `region = "All"`
-  - state/location holidays as separate rows per state/location code
-- Data is upserted into `holidays` using unique key:
-  - `(name, holiday_date, country_code, region)`
-- Optional startup sync:
-  - set `HOLIDAY_SYNC_RUN_ON_START=true`
-
-## Supabase Schema
-Run `supabase/migration.sql` in your Supabase SQL editor. It creates:
-- `holidays` table (optional historical/raw storage)
-- `holiday_cache_meta` table used by the API for per-date cached JSON payload
-
-For deployment (Vercel/Netlify), host frontend static assets and deploy API as a Node service/serverless function with `calendarific_API_KEY` set in platform environment variables.
+## Notes
+- Supabase schema setup: run `supabase/migration.sql`
+- Dev proxy is configured in `vite.config.js` for `/api -> http://localhost:8787`

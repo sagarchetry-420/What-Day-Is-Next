@@ -2,77 +2,14 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion } from 'framer-motion';
 import { useTomorrowInfo } from './hooks/useTomorrowInfo';
 import { useLocation } from './hooks/useLocation';
-import { fetchAllHolidays } from './services/holidayApi';
+import { fetchHolidaysByDate } from './services/holidayApi';
 import { formatLocationLabel } from './utils/locationLabels';
+import { filterHolidaysByLocation, formatHoliday } from './utils/holidayFilter';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import HeroCard from './components/HeroCard';
 import HolidayCards from './components/HolidayCards';
 import LocationSearch from './components/LocationSearch';
-
-function filterHolidaysByLocation(holidays, targetDate, location) {
-  if (!holidays || !location?.countryCode) {
-    return [];
-  }
-
-  const { countryCode, regionCode } = location;
-
-  const countryHolidays = holidays.filter((h) => {
-    const holidayDate = h.holiday_date || '';
-    const hCountryCode = (h.country_code || '').toUpperCase();
-    return holidayDate === targetDate && hCountryCode === countryCode.toUpperCase();
-  });
-
-  if (countryHolidays.length === 0) {
-    return [];
-  }
-
-  const regionalHolidays = [];
-  const nationalHolidays = [];
-
-  for (const holiday of countryHolidays) {
-    const region = (holiday.region || '').toUpperCase();
-
-    if (region === 'ALL' || region === '') {
-      nationalHolidays.push(holiday);
-    } else if (regionCode && region === regionCode.toUpperCase()) {
-      regionalHolidays.push(holiday);
-    }
-  }
-
-  const seen = new Set();
-  const result = [];
-
-  for (const h of regionalHolidays) {
-    const key = h.name.toLowerCase();
-    if (!seen.has(key)) {
-      seen.add(key);
-      result.push({ ...h, isRegional: true });
-    }
-  }
-
-  for (const h of nationalHolidays) {
-    const key = h.name.toLowerCase();
-    if (!seen.has(key)) {
-      seen.add(key);
-      result.push({ ...h, isRegional: false });
-    }
-  }
-
-  return result;
-}
-
-function formatHoliday(holiday, index) {
-  return {
-    id: `${holiday.country_code}-${holiday.holiday_date}-${index}-${holiday.name}`,
-    name: holiday.name,
-    date: holiday.holiday_date,
-    country: holiday.country_code,
-    region: holiday.region,
-    type: holiday.holiday_type || [],
-    isRegional: holiday.isRegional || false
-  };
-}
 
 function App() {
   const { weekday, fullDate, isoDate } = useTomorrowInfo();
@@ -91,7 +28,7 @@ function App() {
       setError('');
 
       try {
-        const data = await fetchAllHolidays(5000);
+        const data = await fetchHolidaysByDate(isoDate);
         if (active) {
           setAllHolidays(data);
         }
@@ -112,7 +49,7 @@ function App() {
     return () => {
       active = false;
     };
-  }, []);
+  }, [isoDate]);
 
   useEffect(() => {
     if (!navigator?.permissions) {

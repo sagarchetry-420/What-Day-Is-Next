@@ -14,6 +14,7 @@ const supabaseUrl = process.env.SUPABASE_URL;
 const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const rateLimitWindowMs = Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000);
 const rateLimitMaxRequests = Number(process.env.RATE_LIMIT_MAX_REQUESTS || 60);
+const corsOrigin = process.env.CORS_ORIGIN || '*';
 
 if (!calendarificKey) {
   console.warn('calendarific_API_KEY is missing. Holiday endpoint will return an error.');
@@ -27,8 +28,13 @@ const supabase = supabaseUrl && supabaseServiceRoleKey
   ? createClient(supabaseUrl, supabaseServiceRoleKey)
   : null;
 
-app.use(cors());
+app.use(cors({
+  origin: corsOrigin === '*' ? true : corsOrigin.split(',').map((value) => value.trim()),
+  methods: ['GET', 'HEAD', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization']
+}));
 app.use(express.json());
+app.disable('x-powered-by');
 
 const rateLimitStore = new Map();
 const pendingDailyFetches = new Map();
@@ -36,6 +42,7 @@ const pendingMonthlyReset = new Map();
 const CALENDARIFIC_TIMEOUT_MS = 15_000;
 const COUNTRY_FETCH_CONCURRENCY = 8;
 const MONTHLY_RESET_KEY = 'monthly-reset-tracker';
+const TOMORROW_MONTH_SYNC_KEY = 'tomorrow-month-sync-tracker';
 
 function getClientIp(req) {
   const forwarded = req.headers['x-forwarded-for'];
@@ -72,6 +79,61 @@ app.use('/api', apiRateLimiter);
 
 function isValidIsoDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function normalizeRegionCode(value) {
+  if (!value) {
+    return '';
+  }
+  const raw = String(value).trim();
+  if (!raw) {
+    return '';
+  }
+  if (raw.includes('-')) {
+    return raw.split('-').pop().toUpperCase();
+  }
+  return raw.toUpperCase();
+}
+
+function extractHolidayRegions(holiday) {
+  const states = Array.isArray(holiday?.states) ? holiday.states : [];
+  const locations = Array.isArray(holiday?.locations) ? holiday.locations : [];
+
+  const fromStates = states
+    .map((item) => item?.abbrev || item?.name || null)
+    .filter(Boolean);
+  const fromLocations = locations
+    .map((item) => item?.iso || item?.name || null)
+    .filter(Boolean);
+
+  const normalized = [...fromStates, ...fromLocations]
+    .map((region) => normalizeRegionCode(region))
+    .filter(Boolean);
+
+  return Array.from(new Set(normalized));
+}
+
+function mapMonthlyHolidayRows(country, holiday, year, month) {
+  const fallbackDate = `${year}-${String(month).padStart(2, '0')}-01`;
+  const holidayDate = String(holiday?.date?.iso || fallbackDate).split('T')[0];
+  const regions = extractHolidayRegions(holiday);
+
+  const base = {
+    name: holiday?.name || 'Unnamed Holiday',
+    description: holiday?.description || '',
+    holiday_date: holidayDate,
+    country_code: country.code,
+    country_name: country.name,
+    holiday_type: Array.isArray(holiday?.type) ? holiday.type : [holiday?.type || 'Unknown'],
+    source: 'calendarific',
+    source_payload: holiday || {}
+  };
+
+  if (!regions.length) {
+    return [{ ...base, region: 'All' }];
+  }
+
+  return regions.map((regionCode) => ({ ...base, region: regionCode }));
 }
 
 async function mapWithConcurrency(items, limit, worker) {
@@ -192,6 +254,14 @@ function getCurrentMonthKey() {
   return `${year}-${month}`;
 }
 
+function getTomorrowMonthKey() {
+  const tomorrow = new Date();
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const year = tomorrow.getFullYear();
+  const month = String(tomorrow.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
 async function getLastResetMonth() {
   const { data, error } = await supabase
     .from('holiday_cache_meta')
@@ -217,6 +287,31 @@ async function setLastResetMonth(monthKey) {
   }
 }
 
+async function getLastTomorrowMonthSync() {
+  const { data, error } = await supabase
+    .from('holiday_cache_meta')
+    .select('cache_key, data')
+    .eq('cache_key', TOMORROW_MONTH_SYNC_KEY)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Supabase read failed: ${error.message}`);
+  }
+
+  return data?.data?.lastTomorrowMonth || null;
+}
+
+async function setLastTomorrowMonthSync(monthKey) {
+  const { error } = await supabase.from('holiday_cache_meta').upsert(
+    [{ cache_key: TOMORROW_MONTH_SYNC_KEY, last_fetched: new Date().toISOString().split('T')[0], data: { lastTomorrowMonth: monthKey } }],
+    { onConflict: 'cache_key' }
+  );
+
+  if (error) {
+    throw new Error(`Supabase upsert failed: ${error.message}`);
+  }
+}
+
 async function clearHolidayData() {
   const { error: holidaysError } = await supabase
     .from('holidays')
@@ -227,6 +322,7 @@ async function clearHolidayData() {
     throw new Error(`Failed to clear holidays: ${holidaysError.message}`);
   }
 
+  // Clear cache except for the monthly reset tracker key
   const { error: cacheError } = await supabase
     .from('holiday_cache_meta')
     .delete()
@@ -237,10 +333,10 @@ async function clearHolidayData() {
   }
 }
 
-async function fetchAndStoreMonthlyHolidays() {
+async function fetchAndStoreMonthlyHolidays(targetYear = null, targetMonth = null) {
   const now = new Date();
-  const year = now.getFullYear();
-  const month = now.getMonth() + 1;
+  const year = targetYear !== null ? targetYear : now.getFullYear();
+  const month = targetMonth !== null ? targetMonth : now.getMonth() + 1;
 
   const countries = await getCountries();
   const allRows = [];
@@ -260,17 +356,7 @@ async function fetchAndStoreMonthlyHolidays() {
       const holidays = response?.data?.response?.holidays || [];
       return {
         ok: true,
-        rows: holidays.map((holiday) => ({
-          name: holiday?.name || 'Unnamed Holiday',
-          description: holiday?.description || '',
-          holiday_date: holiday?.date?.iso?.split('T')[0] || `${year}-${String(month).padStart(2, '0')}-01`,
-          country_code: country.code,
-          country_name: country.name,
-          region: 'All',
-          holiday_type: Array.isArray(holiday?.type) ? holiday.type : [holiday?.type || 'Unknown'],
-          source: 'calendarific',
-          source_payload: holiday || {}
-        }))
+        rows: holidays.flatMap((holiday) => mapMonthlyHolidayRows(country, holiday, year, month))
       };
     } catch {
       return { ok: false, rows: [] };
@@ -312,29 +398,61 @@ async function fetchAndStoreMonthlyHolidays() {
 
 async function ensureMonthlyReset() {
   const currentMonth = getCurrentMonthKey();
+  const tomorrowMonth = getTomorrowMonthKey();
   const lastResetMonth = await getLastResetMonth();
+  const results = { needed: false, currentMonth: null, tomorrowMonth: null };
 
-  if (lastResetMonth === currentMonth) {
-    return { needed: false };
+  // Check and sync current month if needed
+  if (lastResetMonth !== currentMonth) {
+    if (!pendingMonthlyReset.has(currentMonth)) {
+      const [year, month] = currentMonth.split('-').map(Number);
+      pendingMonthlyReset.set(
+        currentMonth,
+        (async () => {
+          console.log(`[monthly-reset] Starting reset for ${currentMonth}...`);
+          await clearHolidayData();
+          const rowCount = await fetchAndStoreMonthlyHolidays(year, month);
+          await setLastResetMonth(currentMonth);
+          console.log(`[monthly-reset] Completed. Stored ${rowCount} holiday records.`);
+          return rowCount;
+        })()
+      );
+    }
+
+    const rowCount = await pendingMonthlyReset.get(currentMonth);
+    pendingMonthlyReset.delete(currentMonth);
+    results.needed = true;
+    results.currentMonth = rowCount;
   }
 
-  if (!pendingMonthlyReset.has(currentMonth)) {
-    pendingMonthlyReset.set(
-      currentMonth,
-      (async () => {
-        console.log(`[monthly-reset] Starting reset for ${currentMonth}...`);
-        await clearHolidayData();
-        const rowCount = await fetchAndStoreMonthlyHolidays();
-        await setLastResetMonth(currentMonth);
-        console.log(`[monthly-reset] Completed. Stored ${rowCount} holiday records.`);
-        return rowCount;
-      })()
-    );
+  // If tomorrow is in a different month, check if it has been synced
+  if (tomorrowMonth !== currentMonth) {
+    const lastTomorrowSync = await getLastTomorrowMonthSync();
+
+    if (lastTomorrowSync !== tomorrowMonth) {
+      const tomorrowCacheKey = `tomorrow-month-${tomorrowMonth}`;
+      if (!pendingMonthlyReset.has(tomorrowCacheKey)) {
+        const [year, month] = tomorrowMonth.split('-').map(Number);
+        pendingMonthlyReset.set(
+          tomorrowCacheKey,
+          (async () => {
+            console.log(`[monthly-reset] Syncing tomorrow's month ${tomorrowMonth}...`);
+            const rowCount = await fetchAndStoreMonthlyHolidays(year, month);
+            await setLastTomorrowMonthSync(tomorrowMonth);
+            console.log(`[monthly-reset] Tomorrow's month completed. Stored ${rowCount} holiday records.`);
+            return rowCount;
+          })()
+        );
+      }
+
+      const rowCount = await pendingMonthlyReset.get(tomorrowCacheKey);
+      pendingMonthlyReset.delete(tomorrowCacheKey);
+      results.needed = true;
+      results.tomorrowMonth = rowCount;
+    }
   }
 
-  const rowCount = await pendingMonthlyReset.get(currentMonth);
-  pendingMonthlyReset.delete(currentMonth);
-  return { needed: true, rowCount };
+  return results;
 }
 
 app.get('/api/holidays/tomorrow', async (req, res) => {
@@ -396,16 +514,28 @@ async function getAllHolidaysHandler(req, res) {
 
     await ensureMonthlyReset();
 
-    const rawLimit = Number(req.query.limit || 1000);
-    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 5000) : 1000;
+    const date = String(req.query.date || '');
+    if (date && !isValidIsoDate(date)) {
+      return res.status(400).json({ message: 'Invalid date format. Use YYYY-MM-DD.' });
+    }
 
-    const { data, error } = await supabase
+    const rawLimit = Number(req.query.limit || 1000);
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 10000) : 1000;
+
+    let query = supabase
       .from('holidays')
       .select('holiday_date,country_code,region,name,holiday_type')
       .order('holiday_date', { ascending: false })
       .order('country_code', { ascending: true })
-      .order('name', { ascending: true })
-      .limit(limit);
+      .order('name', { ascending: true });
+
+    if (date) {
+      query = query.eq('holiday_date', date).limit(10000);
+    } else {
+      query = query.limit(limit);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       throw new Error(`Supabase read failed: ${error.message}`);
@@ -421,12 +551,7 @@ async function getAllHolidaysHandler(req, res) {
 
 app.get('/api/holidays/all', getAllHolidaysHandler);
 app.get('/api/holidays/verify', getAllHolidaysHandler);
-app.get('/api/holidays', (req, res, next) => {
-  if (req.query?.date) {
-    return next();
-  }
-  return getAllHolidaysHandler(req, res);
-});
+app.get('/api/holidays', getAllHolidaysHandler);
 
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
