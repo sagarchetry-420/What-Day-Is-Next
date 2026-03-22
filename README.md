@@ -1,18 +1,15 @@
-# Tomorrow Holidays App
 
 ## Project Overview
-`Tomorrow Holidays App` shows tomorrow’s weekday/date and relevant holidays for the user’s detected or manually selected location. It uses a React + Vite frontend and an Express backend that integrates with Calendarific and caches data in Supabase for reliability and API efficiency.
+`What Day Is Next` shows tomorrow’s weekday/date and relevant holidays for the user’s detected or manually selected location. It uses a React + Vite frontend and an Express backend that integrates with Calendarific and caches data in Supabase for reliability and API efficiency.
 
 ## Setup Instructions
 1. Install dependencies:
 `npm install`
 
 2. Configure environment variables:
-- Copy `.env.example` to `.env`
 - Set `calendarific_API_KEY`
 - Set `SUPABASE_URL`
 - Set `SUPABASE_SERVICE_ROLE_KEY`
-- Set `CORS_ORIGIN` for allowed frontend origin(s) in production (comma-separated if multiple)
 
 3. Start both backend and frontend in development:
 `npm run dev:all`
@@ -82,7 +79,3 @@ System Testing:
 - Some highly localized holidays may depend on source region metadata quality
 - Build currently reports a large bundle-size warning from Vite
 - Cross-browser validation should still be completed in staging before release
-
-## Notes
-- Supabase schema setup: run `supabase/migration.sql`
-- Dev proxy is configured in `vite.config.js` for `/api -> http://localhost:8787`
