@@ -1,375 +1,167 @@
-:root {
-  color-scheme: dark;
-  --bg-dark: #1a1a1a;
-  --bg-gradient-warm: rgba(139, 69, 19, 0.3);
-  --card-bg: rgba(30, 30, 30, 0.9);
-  --card-border: rgba(60, 60, 60, 0.5);
-  --text-primary: #ffffff;
-  --text-secondary: #9ca3af;
-  --accent: #f97316;
-  --accent-light: #fb923c;
-  --danger: #ef4444;
+@import "tailwindcss";
+
+@theme {
+  --font-display: 'Inter', system-ui, -apple-system, sans-serif;
 }
 
-* {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* Theme variables */
+:root {
+  /* Dark theme (default) */
+  --bg-primary: #0a0a0a;
+  --bg-secondary: rgba(255, 255, 255, 0.02);
+  --bg-tertiary: rgba(255, 255, 255, 0.04);
+  --text-primary: rgba(255, 255, 255, 0.95);
+  --text-secondary: rgba(255, 255, 255, 0.65);
+  --text-muted: rgba(255, 255, 255, 0.45);
+  --accent-orange: #ff9e00;
+  --accent-emerald: #34d399;
+  --glow-orange: rgba(249, 115, 22, 0.35);
+  --glow-emerald: rgba(16, 185, 129, 0.25);
+  --gradient-orange: rgba(249, 115, 22, 0.22);
+  --gradient-emerald: rgba(16, 185, 129, 0.12);
+}
+
+:root.light {
+  --bg-primary: #fafafa;
+  --bg-secondary: rgba(0, 0, 0, 0.02);
+  --bg-tertiary: rgba(0, 0, 0, 0.04);
+  --text-primary: rgba(0, 0, 0, 0.9);
+  --text-secondary: rgba(0, 0, 0, 0.6);
+  --text-muted: rgba(0, 0, 0, 0.4);
+  --accent-orange: #ea580c;
+  --accent-emerald: #059669;
+  --glow-orange: rgba(249, 115, 22, 0.2);
+  --glow-emerald: rgba(16, 185, 129, 0.15);
+  --gradient-orange: rgba(249, 115, 22, 0.08);
+  --gradient-emerald: rgba(16, 185, 129, 0.06);
+}
+
+html,
+body {
+  min-height: 100%;
 }
 
 body {
-  min-height: 100vh;
-  background: var(--bg-dark);
+  margin: 0;
+  background: var(--bg-primary);
   background-image:
-    radial-gradient(ellipse at top right, var(--bg-gradient-warm) 0%, transparent 50%),
-    radial-gradient(ellipse at bottom left, rgba(34, 60, 34, 0.2) 0%, transparent 50%);
+    radial-gradient(ellipse at top right, var(--gradient-orange), transparent 48%),
+    radial-gradient(ellipse at bottom left, var(--gradient-emerald), transparent 55%);
   color: var(--text-primary);
-  font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
-  line-height: 1.5;
+  font-family: var(--font-display);
+  transition: background-color 0.4s ease, color 0.4s ease;
 }
 
 #root {
   min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 1rem;
 }
 
-.app-container {
-  width: 100%;
-  max-width: 420px;
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-  padding: 2rem 1.5rem;
-}
-
-.app-header {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  margin-bottom: 3rem;
-}
-
-.calendar-icon {
-  width: 24px;
-  height: 24px;
-  color: var(--accent);
-}
-
-.app-title {
-  font-size: 1.25rem;
-  font-weight: 600;
-  color: var(--accent);
-  letter-spacing: 0.02em;
-}
-
-.main-content {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-}
-
-.tomorrow-label {
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0.3em;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  margin-bottom: 1.5rem;
-}
-
-.date-card {
-  width: 100%;
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 16px;
-  padding: 2rem 1.5rem;
-  text-align: center;
-  backdrop-filter: blur(10px);
-}
-
-.weekday {
-  font-size: clamp(2.5rem, 10vw, 4rem);
+.font-brand {
+  font-family: var(--font-display);
   font-weight: 800;
-  color: var(--text-primary);
-  line-height: 1.1;
-  margin-bottom: 0.5rem;
+  letter-spacing: -0.025em;
 }
 
-.full-date {
-  font-size: 1.125rem;
-  color: var(--accent);
-  font-weight: 500;
-  margin-bottom: 1.5rem;
+/* Theme transition utility */
+.theme-transition {
+  transition: background-color 0.4s ease, color 0.4s ease, box-shadow 0.4s ease;
 }
 
-.holiday-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  background: rgba(50, 50, 50, 0.8);
-  border: 1px solid var(--card-border);
-  border-radius: 8px;
-  padding: 0.75rem 1.25rem;
-  max-width: 100%;
+/* Glow utilities */
+.glow-orange {
+  box-shadow: 0 0 40px var(--glow-orange), 0 0 80px rgba(249, 115, 22, 0.15);
 }
 
-.holiday-badge.loading {
-  opacity: 0.7;
+.glow-emerald {
+  box-shadow: 0 0 40px var(--glow-emerald), 0 0 80px rgba(16, 185, 129, 0.1);
 }
 
-.holiday-badge.error {
-  border-color: var(--danger);
-  background: rgba(239, 68, 68, 0.1);
+/* Search input - minimal floating design */
+.search-input {
+  background: var(--bg-tertiary);
+  backdrop-filter: blur(12px);
+  transition: box-shadow 0.3s ease, background 0.3s ease;
 }
 
-.holiday-badge.error .badge-text {
-  color: var(--danger);
+.search-input:focus-within {
+  background: var(--bg-secondary);
+  box-shadow: 0 0 0 2px var(--glow-orange), 0 8px 32px -8px rgba(0, 0, 0, 0.3);
 }
 
-.holiday-badge.muted .badge-text {
-  color: var(--text-secondary);
+/* Search results - glass effect */
+.search-results {
+  background: rgba(20, 20, 20, 0.95);
+  backdrop-filter: blur(16px);
+  box-shadow: 0 16px 48px -12px rgba(0, 0, 0, 0.5);
 }
 
-.badge-emoji {
-  font-size: 1rem;
-  flex-shrink: 0;
+:root.light .search-results {
+  background: rgba(255, 255, 255, 0.95);
+  box-shadow: 0 16px 48px -12px rgba(0, 0, 0, 0.15);
 }
 
-.badge-text {
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  color: var(--text-secondary);
-  text-transform: uppercase;
+.search-result {
+  transition: background 0.15s ease, transform 0.15s ease;
 }
 
-.badge-label {
-  color: var(--text-secondary);
+.search-result:hover,
+.search-result:focus {
+  background: var(--bg-tertiary);
 }
 
-.more-holidays {
-  margin-top: 1rem;
-  font-size: 0.875rem;
-  color: var(--text-secondary);
-}
-
-.holidays-list {
-  width: 100%;
-  margin-top: 2rem;
-}
-
-.holidays-list-title {
-  font-size: 0.875rem;
-  font-weight: 600;
-  color: var(--text-secondary);
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  margin-bottom: 1rem;
-  text-align: center;
-}
-
-.holidays-grid {
-  list-style: none;
-  display: grid;
-  gap: 0.75rem;
-}
-
+/* Holiday card hover glow */
 .holiday-card {
-  background: var(--card-bg);
-  border: 1px solid var(--card-border);
-  border-radius: 12px;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
+  transition: box-shadow 0.3s ease, transform 0.3s ease;
 }
 
-.holiday-name {
-  font-size: 0.9375rem;
-  font-weight: 600;
+.holiday-card:hover {
+  box-shadow: 0 0 24px var(--glow-orange);
+  transform: translateY(-2px);
+}
+
+/* Text color utilities using theme variables */
+.text-theme-primary {
   color: var(--text-primary);
 }
 
-.holiday-country {
-  font-size: 0.8125rem;
+.text-theme-secondary {
   color: var(--text-secondary);
 }
 
-.app-footer {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 3rem;
-  padding-top: 1rem;
+.text-theme-muted {
+  color: var(--text-muted);
 }
 
-.footer-link {
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0.1em;
-  color: var(--text-secondary);
-  text-decoration: none;
-  transition: color 0.2s ease;
+.text-accent-orange {
+  color: var(--accent-orange);
 }
 
-.footer-link:hover {
-  color: var(--accent);
+.text-accent-emerald {
+  color: var(--accent-emerald);
 }
 
-.copyright {
-  font-size: 0.75rem;
-  font-weight: 500;
-  letter-spacing: 0.05em;
-  color: var(--accent);
+/* Background utilities */
+.bg-theme-primary {
+  background-color: var(--bg-primary);
 }
 
-/* Desktop/Laptop Responsive Styles */
-@media (min-width: 768px) {
-  #root {
-    padding: 2rem;
-  }
-
-  .app-container {
-    max-width: 900px;
-    min-height: auto;
-    padding: 3rem;
-    background: rgba(20, 20, 20, 0.5);
-    border-radius: 24px;
-    border: 1px solid var(--card-border);
-    backdrop-filter: blur(20px);
-  }
-
-  .app-header {
-    margin-bottom: 2rem;
-  }
-
-  .main-content {
-    flex-direction: row;
-    align-items: flex-start;
-    gap: 3rem;
-    padding: 2rem 0;
-  }
-
-  .tomorrow-label {
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    top: -2rem;
-  }
-
-  .date-card {
-    flex: 1;
-    max-width: 400px;
-    padding: 2.5rem 2rem;
-    position: relative;
-  }
-
-  .date-card::before {
-    content: 'TOMORROW IS...';
-    position: absolute;
-    top: -2.5rem;
-    left: 50%;
-    transform: translateX(-50%);
-    font-size: 0.75rem;
-    font-weight: 500;
-    letter-spacing: 0.3em;
-    color: var(--text-secondary);
-    white-space: nowrap;
-  }
-
-  .main-content .tomorrow-label {
-    display: none;
-  }
-
-  .holidays-list {
-    flex: 1;
-    max-width: 400px;
-    margin-top: 0;
-    padding-top: 2.5rem;
-  }
-
-  .holidays-list-title {
-    text-align: left;
-  }
-
-  .holidays-grid {
-    max-height: 400px;
-    overflow-y: auto;
-    padding-right: 0.5rem;
-  }
-
-  .holidays-grid::-webkit-scrollbar {
-    width: 6px;
-  }
-
-  .holidays-grid::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
-  .holidays-grid::-webkit-scrollbar-thumb {
-    background: var(--card-border);
-    border-radius: 3px;
-  }
-
-  .holidays-grid::-webkit-scrollbar-thumb:hover {
-    background: var(--text-secondary);
-  }
-
-  .app-footer {
-    flex-direction: row;
-    justify-content: center;
-    gap: 2rem;
-    margin-top: 2rem;
-  }
+.bg-theme-secondary {
+  background-color: var(--bg-secondary);
 }
 
-@media (min-width: 1024px) {
-  .app-container {
-    max-width: 1000px;
-    padding: 3rem 4rem;
-  }
-
-  .weekday {
-    font-size: 4.5rem;
-  }
-
-  .date-card {
-    padding: 3rem 2.5rem;
-  }
-
-  .holidays-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .holiday-card {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: center;
-  }
+.bg-theme-tertiary {
+  background-color: var(--bg-tertiary);
 }
 
-@media (min-width: 1280px) {
-  .app-container {
-    max-width: 1100px;
-  }
+/* Theme toggle button */
+.theme-toggle {
+  transition: transform 0.3s ease, opacity 0.3s ease;
+}
 
-  .main-content {
-    gap: 4rem;
-  }
+.theme-toggle:hover {
+  transform: scale(1.1);
+}
 
-  .date-card {
-    max-width: 450px;
-  }
-
-  .holidays-list {
-    max-width: 500px;
-  }
+.theme-toggle:active {
+  transform: scale(0.95);
 }
