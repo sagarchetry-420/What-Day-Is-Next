@@ -30,3 +30,39 @@ export async function fetchTomorrowHolidays(date) {
   const payload = await response.json();
   return payload?.data || [];
 }
+
+export async function fetchAllHolidays(limit = 1000) {
+  const endpoints = [
+    `${API_BASE}/api/holidays/all?limit=${encodeURIComponent(limit)}`,
+    `${API_BASE}/api/holidays/verify?limit=${encodeURIComponent(limit)}`,
+    `${API_BASE}/api/holidays?limit=${encodeURIComponent(limit)}`
+  ];
+
+  let response = null;
+  let lastStatus = 0;
+  for (const url of endpoints) {
+    response = await fetch(url);
+    lastStatus = response.status;
+    if (response.ok) {
+      break;
+    }
+    if (response.status !== 404) {
+      break;
+    }
+  }
+
+  if (!response.ok) {
+    const fallback = `All holidays request failed with status ${lastStatus || response.status}`;
+    let message = fallback;
+    try {
+      const data = await response.json();
+      message = data?.message || fallback;
+    } catch {
+      message = fallback;
+    }
+    throw new Error(message);
+  }
+
+  const payload = await response.json();
+  return payload?.data || [];
+}

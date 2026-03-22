@@ -32,8 +32,10 @@ app.use(express.json());
 
 const rateLimitStore = new Map();
 const pendingDailyFetches = new Map();
+const pendingMonthlyReset = new Map();
 const CALENDARIFIC_TIMEOUT_MS = 15_000;
 const COUNTRY_FETCH_CONCURRENCY = 8;
+const MONTHLY_RESET_KEY = 'monthly-reset-tracker';
 
 function getClientIp(req) {
   const forwarded = req.headers['x-forwarded-for'];
@@ -183,6 +185,158 @@ async function upsertDailyHolidays(cacheKey, date, data) {
   }
 }
 
+function getCurrentMonthKey() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  return `${year}-${month}`;
+}
+
+async function getLastResetMonth() {
+  const { data, error } = await supabase
+    .from('holiday_cache_meta')
+    .select('cache_key, data')
+    .eq('cache_key', MONTHLY_RESET_KEY)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(`Supabase read failed: ${error.message}`);
+  }
+
+  return data?.data?.lastResetMonth || null;
+}
+
+async function setLastResetMonth(monthKey) {
+  const { error } = await supabase.from('holiday_cache_meta').upsert(
+    [{ cache_key: MONTHLY_RESET_KEY, last_fetched: new Date().toISOString().split('T')[0], data: { lastResetMonth: monthKey } }],
+    { onConflict: 'cache_key' }
+  );
+
+  if (error) {
+    throw new Error(`Supabase upsert failed: ${error.message}`);
+  }
+}
+
+async function clearHolidayData() {
+  const { error: holidaysError } = await supabase
+    .from('holidays')
+    .delete()
+    .neq('id', 0);
+
+  if (holidaysError) {
+    throw new Error(`Failed to clear holidays: ${holidaysError.message}`);
+  }
+
+  const { error: cacheError } = await supabase
+    .from('holiday_cache_meta')
+    .delete()
+    .neq('cache_key', MONTHLY_RESET_KEY);
+
+  if (cacheError) {
+    throw new Error(`Failed to clear cache: ${cacheError.message}`);
+  }
+}
+
+async function fetchAndStoreMonthlyHolidays() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = now.getMonth() + 1;
+
+  const countries = await getCountries();
+  const allRows = [];
+
+  const countryResults = await mapWithConcurrency(countries, COUNTRY_FETCH_CONCURRENCY, async (country) => {
+    try {
+      const response = await axios.get('https://calendarific.com/api/v2/holidays', {
+        params: {
+          api_key: calendarificKey,
+          country: country.code,
+          year,
+          month
+        },
+        timeout: CALENDARIFIC_TIMEOUT_MS
+      });
+
+      const holidays = response?.data?.response?.holidays || [];
+      return {
+        ok: true,
+        rows: holidays.map((holiday) => ({
+          name: holiday?.name || 'Unnamed Holiday',
+          description: holiday?.description || '',
+          holiday_date: holiday?.date?.iso?.split('T')[0] || `${year}-${String(month).padStart(2, '0')}-01`,
+          country_code: country.code,
+          country_name: country.name,
+          region: 'All',
+          holiday_type: Array.isArray(holiday?.type) ? holiday.type : [holiday?.type || 'Unknown'],
+          source: 'calendarific',
+          source_payload: holiday || {}
+        }))
+      };
+    } catch {
+      return { ok: false, rows: [] };
+    }
+  });
+
+  const successfulRequests = countryResults.filter((result) => result.ok).length;
+  if (successfulRequests === 0) {
+    throw new Error('Could not retrieve holiday data from Calendarific.');
+  }
+
+  for (const result of countryResults) {
+    allRows.push(...result.rows);
+  }
+
+  if (allRows.length > 0) {
+    // Deduplicate rows to avoid "ON CONFLICT DO UPDATE cannot affect row a second time" error
+    const seen = new Map();
+    for (const row of allRows) {
+      const key = `${row.name}|${row.holiday_date}|${row.country_code}|${row.region}`;
+      seen.set(key, row);
+    }
+    const uniqueRows = Array.from(seen.values());
+
+    const batchSize = 500;
+    for (let i = 0; i < uniqueRows.length; i += batchSize) {
+      const batch = uniqueRows.slice(i, i + batchSize);
+      const { error } = await supabase.from('holidays').upsert(batch, {
+        onConflict: 'name,holiday_date,country_code,region'
+      });
+      if (error) {
+        throw new Error(`Supabase upsert failed: ${error.message}`);
+      }
+    }
+  }
+
+  return allRows.length;
+}
+
+async function ensureMonthlyReset() {
+  const currentMonth = getCurrentMonthKey();
+  const lastResetMonth = await getLastResetMonth();
+
+  if (lastResetMonth === currentMonth) {
+    return { needed: false };
+  }
+
+  if (!pendingMonthlyReset.has(currentMonth)) {
+    pendingMonthlyReset.set(
+      currentMonth,
+      (async () => {
+        console.log(`[monthly-reset] Starting reset for ${currentMonth}...`);
+        await clearHolidayData();
+        const rowCount = await fetchAndStoreMonthlyHolidays();
+        await setLastResetMonth(currentMonth);
+        console.log(`[monthly-reset] Completed. Stored ${rowCount} holiday records.`);
+        return rowCount;
+      })()
+    );
+  }
+
+  const rowCount = await pendingMonthlyReset.get(currentMonth);
+  pendingMonthlyReset.delete(currentMonth);
+  return { needed: true, rowCount };
+}
+
 app.get('/api/holidays/tomorrow', async (req, res) => {
   try {
     if (!calendarificKey) {
@@ -192,6 +346,8 @@ app.get('/api/holidays/tomorrow', async (req, res) => {
     if (!supabase) {
       return res.status(500).json({ message: 'Supabase is not configured on the server.' });
     }
+
+    await ensureMonthlyReset();
 
     const date = String(req.query.date || '');
     if (!isValidIsoDate(date)) {
@@ -230,6 +386,46 @@ app.get('/api/holidays/tomorrow', async (req, res) => {
       pendingDailyFetches.delete(`worldwide-${date}`);
     }
   }
+});
+
+async function getAllHolidaysHandler(req, res) {
+  try {
+    if (!supabase) {
+      return res.status(500).json({ message: 'Supabase is not configured on the server.' });
+    }
+
+    await ensureMonthlyReset();
+
+    const rawLimit = Number(req.query.limit || 1000);
+    const limit = Number.isFinite(rawLimit) ? Math.min(Math.max(rawLimit, 1), 5000) : 1000;
+
+    const { data, error } = await supabase
+      .from('holidays')
+      .select('holiday_date,country_code,region,name,holiday_type')
+      .order('holiday_date', { ascending: false })
+      .order('country_code', { ascending: true })
+      .order('name', { ascending: true })
+      .limit(limit);
+
+    if (error) {
+      throw new Error(`Supabase read failed: ${error.message}`);
+    }
+
+    return res.json({ data: data || [] });
+  } catch (error) {
+    return res.status(502).json({
+      message: error?.message || 'Unexpected server error while fetching all holidays.'
+    });
+  }
+}
+
+app.get('/api/holidays/all', getAllHolidaysHandler);
+app.get('/api/holidays/verify', getAllHolidaysHandler);
+app.get('/api/holidays', (req, res, next) => {
+  if (req.query?.date) {
+    return next();
+  }
+  return getAllHolidaysHandler(req, res);
 });
 
 app.get('/api/health', (_req, res) => {

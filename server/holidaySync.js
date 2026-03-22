@@ -110,13 +110,24 @@ async function fetchCountryMonthHolidays(apiKey, countryCode, year, month) {
   return response?.data?.response?.holidays || [];
 }
 
+function deduplicateRows(rows) {
+  const seen = new Map();
+  for (const row of rows) {
+    const key = `${row.name}|${row.holiday_date}|${row.country_code}|${row.region}`;
+    seen.set(key, row);
+  }
+  return Array.from(seen.values());
+}
+
 async function upsertRows(supabase, rows) {
   if (!rows.length) {
     return;
   }
 
-  for (let i = 0; i < rows.length; i += DB_BATCH_SIZE) {
-    const batch = rows.slice(i, i + DB_BATCH_SIZE);
+  const uniqueRows = deduplicateRows(rows);
+
+  for (let i = 0; i < uniqueRows.length; i += DB_BATCH_SIZE) {
+    const batch = uniqueRows.slice(i, i + DB_BATCH_SIZE);
     const { error } = await supabase.from('holidays').upsert(batch, {
       onConflict: 'name,holiday_date,country_code,region'
     });

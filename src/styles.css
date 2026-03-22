@@ -1,128 +1,375 @@
 :root {
   color-scheme: dark;
-  --bg: #020617;
-  --panel: #0f172a;
-  --panel-border: #1e293b;
-  --text-main: #e2e8f0;
-  --text-muted: #94a3b8;
-  --accent: #38bdf8;
-  --danger: #f87171;
+  --bg-dark: #1a1a1a;
+  --bg-gradient-warm: rgba(139, 69, 19, 0.3);
+  --card-bg: rgba(30, 30, 30, 0.9);
+  --card-border: rgba(60, 60, 60, 0.5);
+  --text-primary: #ffffff;
+  --text-secondary: #9ca3af;
+  --accent: #f97316;
+  --accent-light: #fb923c;
+  --danger: #ef4444;
 }
 
 * {
   box-sizing: border-box;
+  margin: 0;
+  padding: 0;
 }
 
 body {
-  margin: 0;
   min-height: 100vh;
-  background: radial-gradient(circle at top, #11203f 0%, var(--bg) 45%);
-  color: var(--text-main);
+  background: var(--bg-dark);
+  background-image:
+    radial-gradient(ellipse at top right, var(--bg-gradient-warm) 0%, transparent 50%),
+    radial-gradient(ellipse at bottom left, rgba(34, 60, 34, 0.2) 0%, transparent 50%);
+  color: var(--text-primary);
   font-family: 'Inter', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
   line-height: 1.5;
 }
 
 #root {
-  width: min(980px, 92vw);
-  margin: 0 auto;
-  padding: 2rem 0 3rem;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 1rem;
 }
 
-.page-header {
-  margin-bottom: 1rem;
+.app-container {
+  width: 100%;
+  max-width: 420px;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  padding: 2rem 1.5rem;
 }
 
-.eyebrow {
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--text-muted);
-  font-size: 0.8rem;
-  margin: 0;
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  margin-bottom: 3rem;
 }
 
-.layout {
-  display: grid;
-  gap: 1rem;
-}
-
-.card {
-  border: 1px solid var(--panel-border);
-  border-radius: 16px;
-  background: linear-gradient(180deg, rgba(15, 23, 42, 0.88), rgba(15, 23, 42, 0.96));
-  padding: 1.2rem;
-  box-shadow: 0 18px 34px rgba(0, 0, 0, 0.25);
-  transition: transform 200ms ease, box-shadow 200ms ease;
-}
-
-.card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 24px 42px rgba(0, 0, 0, 0.3);
-}
-
-h1,
-h2,
-h3 {
-  margin-top: 0;
-}
-
-h1 {
-  font-size: 1.1rem;
-  color: var(--text-muted);
-  font-weight: 600;
-}
-
-.day-name {
-  margin: 0.25rem 0 0;
-  font-size: clamp(2rem, 7vw, 4rem);
-  font-weight: 800;
+.calendar-icon {
+  width: 24px;
+  height: 24px;
   color: var(--accent);
+}
+
+.app-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--accent);
+  letter-spacing: 0.02em;
+}
+
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.tomorrow-label {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.3em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  margin-bottom: 1.5rem;
+}
+
+.date-card {
+  width: 100%;
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 16px;
+  padding: 2rem 1.5rem;
+  text-align: center;
+  backdrop-filter: blur(10px);
+}
+
+.weekday {
+  font-size: clamp(2.5rem, 10vw, 4rem);
+  font-weight: 800;
+  color: var(--text-primary);
   line-height: 1.1;
+  margin-bottom: 0.5rem;
 }
 
 .full-date {
-  margin: 0.75rem 0 0;
-  font-size: clamp(1rem, 2.5vw, 1.2rem);
+  font-size: 1.125rem;
+  color: var(--accent);
+  font-weight: 500;
+  margin-bottom: 1.5rem;
 }
 
-.holiday-list {
-  list-style: none;
-  margin: 0.8rem 0 0;
-  padding: 0;
-  display: grid;
-  gap: 0.8rem;
+.holiday-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: rgba(50, 50, 50, 0.8);
+  border: 1px solid var(--card-border);
+  border-radius: 8px;
+  padding: 0.75rem 1.25rem;
+  max-width: 100%;
 }
 
-.holiday-item {
-  border: 1px solid var(--panel-border);
-  border-radius: 12px;
-  padding: 0.85rem;
-  background: rgba(15, 23, 42, 0.85);
+.holiday-badge.loading {
+  opacity: 0.7;
 }
 
-.holiday-item h3 {
-  margin: 0 0 0.4rem;
-  color: #f8fafc;
-  font-size: 1rem;
+.holiday-badge.error {
+  border-color: var(--danger);
+  background: rgba(239, 68, 68, 0.1);
 }
 
-.holiday-item p {
-  margin: 0.25rem 0;
-  color: var(--text-main);
-  font-size: 0.95rem;
-}
-
-.status,
-.muted {
-  color: var(--text-muted);
-}
-
-.status.error {
+.holiday-badge.error .badge-text {
   color: var(--danger);
 }
 
-@media (min-width: 860px) {
-  .layout {
-    grid-template-columns: 1fr 1.2fr;
-    align-items: start;
+.holiday-badge.muted .badge-text {
+  color: var(--text-secondary);
+}
+
+.badge-emoji {
+  font-size: 1rem;
+  flex-shrink: 0;
+}
+
+.badge-text {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+}
+
+.badge-label {
+  color: var(--text-secondary);
+}
+
+.more-holidays {
+  margin-top: 1rem;
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+}
+
+.holidays-list {
+  width: 100%;
+  margin-top: 2rem;
+}
+
+.holidays-list-title {
+  font-size: 0.875rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  margin-bottom: 1rem;
+  text-align: center;
+}
+
+.holidays-grid {
+  list-style: none;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.holiday-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.holiday-name {
+  font-size: 0.9375rem;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.holiday-country {
+  font-size: 0.8125rem;
+  color: var(--text-secondary);
+}
+
+.app-footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 3rem;
+  padding-top: 1rem;
+}
+
+.footer-link {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--text-secondary);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.footer-link:hover {
+  color: var(--accent);
+}
+
+.copyright {
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.05em;
+  color: var(--accent);
+}
+
+/* Desktop/Laptop Responsive Styles */
+@media (min-width: 768px) {
+  #root {
+    padding: 2rem;
+  }
+
+  .app-container {
+    max-width: 900px;
+    min-height: auto;
+    padding: 3rem;
+    background: rgba(20, 20, 20, 0.5);
+    border-radius: 24px;
+    border: 1px solid var(--card-border);
+    backdrop-filter: blur(20px);
+  }
+
+  .app-header {
+    margin-bottom: 2rem;
+  }
+
+  .main-content {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 3rem;
+    padding: 2rem 0;
+  }
+
+  .tomorrow-label {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    top: -2rem;
+  }
+
+  .date-card {
+    flex: 1;
+    max-width: 400px;
+    padding: 2.5rem 2rem;
+    position: relative;
+  }
+
+  .date-card::before {
+    content: 'TOMORROW IS...';
+    position: absolute;
+    top: -2.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.75rem;
+    font-weight: 500;
+    letter-spacing: 0.3em;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .main-content .tomorrow-label {
+    display: none;
+  }
+
+  .holidays-list {
+    flex: 1;
+    max-width: 400px;
+    margin-top: 0;
+    padding-top: 2.5rem;
+  }
+
+  .holidays-list-title {
+    text-align: left;
+  }
+
+  .holidays-grid {
+    max-height: 400px;
+    overflow-y: auto;
+    padding-right: 0.5rem;
+  }
+
+  .holidays-grid::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .holidays-grid::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .holidays-grid::-webkit-scrollbar-thumb {
+    background: var(--card-border);
+    border-radius: 3px;
+  }
+
+  .holidays-grid::-webkit-scrollbar-thumb:hover {
+    background: var(--text-secondary);
+  }
+
+  .app-footer {
+    flex-direction: row;
+    justify-content: center;
+    gap: 2rem;
+    margin-top: 2rem;
+  }
+}
+
+@media (min-width: 1024px) {
+  .app-container {
+    max-width: 1000px;
+    padding: 3rem 4rem;
+  }
+
+  .weekday {
+    font-size: 4.5rem;
+  }
+
+  .date-card {
+    padding: 3rem 2.5rem;
+  }
+
+  .holidays-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .holiday-card {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+  }
+}
+
+@media (min-width: 1280px) {
+  .app-container {
+    max-width: 1100px;
+  }
+
+  .main-content {
+    gap: 4rem;
+  }
+
+  .date-card {
+    max-width: 450px;
+  }
+
+  .holidays-list {
+    max-width: 500px;
   }
 }
