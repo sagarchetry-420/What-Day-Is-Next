@@ -15,6 +15,7 @@ const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const rateLimitWindowMs = Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000);
 const rateLimitMaxRequests = Number(process.env.RATE_LIMIT_MAX_REQUESTS || 60);
 const corsOrigin = process.env.CORS_ORIGIN || '*';
+const WEATHER_CACHE_TTL_MS = Number(process.env.WEATHER_CACHE_TTL_MS || 24 * 60 * 60 * 1000); // 24 hours
 
 if (!calendarificKey) {
   console.warn('calendarific_API_KEY is missing. Holiday endpoint will return an error.');
@@ -324,7 +325,8 @@ async function upsertWeatherCache(cacheKey, weatherDate, latitude, longitude, pa
       weather_date: weatherDate,
       latitude: normalizeCoordinate(latitude),
       longitude: normalizeCoordinate(longitude),
-      payload
+      payload,
+      last_fetched_at: new Date().toISOString()
     }],
     { onConflict: 'cache_key' }
   );
@@ -340,6 +342,18 @@ async function upsertWeatherCache(cacheKey, weatherDate, latitude, longitude, pa
 
 function toIsoDateOnly(value) {
   return String(value || '').split('T')[0];
+}
+
+function isCacheValid(lastFetchedAt, ttlMs = WEATHER_CACHE_TTL_MS) {
+  if (!lastFetchedAt) {
+    return false;
+  }
+  const fetchedTime = new Date(lastFetchedAt).getTime();
+  if (Number.isNaN(fetchedTime)) {
+    return false;
+  }
+  const now = Date.now();
+  return now - fetchedTime < ttlMs;
 }
 
 function getHourFromIsoTime(time) {
@@ -810,7 +824,9 @@ app.get('/api/weather/tomorrow', weatherRateLimiter, async (req, res) => {
 
     const cacheKey = weatherCacheKeyFor(date, lat, lon);
     const cached = await getCachedWeather(cacheKey);
-    if (cached && String(cached.weather_date) === date) {
+
+    // Check if cache exists, matches the requested date, AND is within TTL (24 hours)
+    if (cached && String(cached.weather_date) === date && isCacheValid(cached.last_fetched_at)) {
       return res.json({ data: cached.payload, cached: true });
     }
 
@@ -826,7 +842,7 @@ app.get('/api/weather/tomorrow', weatherRateLimiter, async (req, res) => {
     }
 
     const weather = await pendingWeatherFetches.get(cacheKey);
-    return res.json({ data: weather, cached: weatherCacheTableAvailable ? false : null });
+    return res.json({ data: weather, cached: false });
   } catch (error) {
     const cacheKey = isValidIsoDate(date) && isValidCoordinate(lat, -90, 90) && isValidCoordinate(lon, -180, 180)
       ? weatherCacheKeyFor(date, lat, lon)

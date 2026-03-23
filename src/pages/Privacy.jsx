@@ -103,6 +103,42 @@ function Privacy() {
                 .
               </p>
             </Section>
+
+            <Section title="Weather Data" delay={0.27}>
+              <p>
+                WhatDayIsNext displays weather forecasts for your location. Here is how we handle weather-related data:
+              </p>
+              <ul className="list-disc space-y-2 pl-5">
+                <li>
+                  <strong>What we collect:</strong> Your approximate coordinates (latitude and longitude) are used to
+                  fetch weather forecasts. These coordinates are derived from your browser location or manual location
+                  selection.
+                </li>
+                <li>
+                  <strong>API usage:</strong> We use the{' '}
+                  <a
+                    href="https://api.met.no/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-accent-orange underline-offset-2 hover:underline"
+                  >
+                    met.no API
+                  </a>{' '}
+                  (Norwegian Meteorological Institute) to retrieve weather data. No personal information is shared with
+                  this service beyond geographic coordinates.
+                </li>
+                <li>
+                  <strong>Location handling:</strong> Coordinates are rounded to reduce precision before being used in
+                  weather queries or stored. This helps protect your exact location while still providing accurate
+                  forecasts.
+                </li>
+                <li>
+                  <strong>Caching:</strong> Weather data is cached on our server for up to 24 hours per location. This
+                  reduces API requests and improves load times. Cached data includes forecast information only, not
+                  user identifiers.
+                </li>
+              </ul>
+            </Section>
           </div>
         </div>
       </motion.main>

@@ -179,7 +179,7 @@ function App() {
         </section>
 
         <div className="mx-auto w-full max-w-6xl">
-          <HolidayCards holidays={holidays} />
+          <HolidayCards holidays={holidays} isLoading={isLoading} />
         </div>
       </motion.main>
 

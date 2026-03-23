@@ -1,4 +1,5 @@
 import { AnimatePresence, motion } from 'framer-motion';
+import WeatherDisplay from './WeatherDisplay';
 
 function HeroCard({
   weekday,
@@ -46,16 +47,28 @@ function HeroCard({
       <div className="mt-10 min-h-10 sm:mt-12">
         <AnimatePresence mode="wait">
           {isLoading && (
-            <motion.p
+            <motion.div
               key="loading"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
               transition={{ duration: 0.3 }}
-              className="text-sm text-theme-secondary sm:text-base"
+              className="flex flex-col items-center gap-4"
             >
-              Detecting your location and holidays...
-            </motion.p>
+              {/* Location skeleton */}
+              <div className="flex flex-col items-center gap-2">
+                <div className="skeleton-shimmer h-3 w-16 rounded-full" />
+                <div className="skeleton-shimmer h-5 w-32 rounded-full" />
+              </div>
+              {/* Weather skeleton */}
+              <div className="flex items-center gap-3 mt-2">
+                <div className="skeleton-shimmer h-12 w-12 rounded-full" />
+                <div className="flex flex-col gap-1.5">
+                  <div className="skeleton-shimmer h-8 w-16 rounded" />
+                  <div className="skeleton-shimmer h-3 w-20 rounded-full" />
+                </div>
+              </div>
+            </motion.div>
           )}
 
           {!isLoading && error && (
@@ -97,29 +110,11 @@ function HeroCard({
                 className="mt-4 flex flex-col items-center gap-1"
               >
                 <span className="text-xs uppercase tracking-widest text-theme-muted">Weather</span>
-                {weatherLoading && <p className="text-sm text-theme-secondary sm:text-base">Loading tomorrow weather...</p>}
-                {!weatherLoading && weather && (
-                  <div className="flex flex-col items-center gap-1 text-sm text-theme-secondary sm:text-base">
-                    <p>
-                      {weather.weekday || 'Tomorrow'} • {weather.condition || weather.summary} • {weather.temperature_c}°C
-                    </p>
-                    {weather.daytime && (
-                      <p>
-                        Day: {weather.daytime.condition} {weather.daytime.avg_temp_c}°C
-                        {' '}({weather.daytime.min_temp_c}°C–{weather.daytime.max_temp_c}°C)
-                      </p>
-                    )}
-                    {weather.nighttime && (
-                      <p>
-                        Night: {weather.nighttime.condition} {weather.nighttime.avg_temp_c}°C
-                        {' '}({weather.nighttime.min_temp_c}°C–{weather.nighttime.max_temp_c}°C)
-                      </p>
-                    )}
-                  </div>
-                )}
-                {!weatherLoading && !weather && weatherError && (
-                  <p className="text-sm text-theme-secondary sm:text-base">{weatherError}</p>
-                )}
+                <WeatherDisplay
+                  weather={weather}
+                  isLoading={weatherLoading}
+                  error={weatherError}
+                />
               </motion.div>
             )}
 
