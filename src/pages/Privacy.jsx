@@ -54,90 +54,58 @@ function Privacy() {
             transition={{ duration: 0.4, delay: 0.1 }}
             className="mt-4 max-w-2xl text-base text-theme-secondary sm:mt-6 sm:text-lg"
           >
-            We keep your data handling minimal and transparent. This policy explains how location is used inside
-            WhatDayIsNext.
+            This page describes our privacy policy and your rights when using WhatDayIsNext.
           </motion.p>
 
           <div className="mt-8 sm:mt-12">
-            <Section title="Location Data" delay={0.12}>
+            <Section title="Information We Collect" delay={0.12}>
               <p>
-                WhatDayIsNext requests browser location access only to identify your country and state/region so we can
-                show relevant holidays.
+                We collect only the information needed to provide core app features. This can include basic usage data
+                and location details when you choose to share them.
               </p>
             </Section>
 
-            <Section title="How We Use Your Location" delay={0.15}>
+            <Section title="How We Use Information" delay={0.15}>
               <ul className="list-disc space-y-2 pl-5">
-                <li>Coordinates are used with OpenStreetMap Nominatim to resolve location names.</li>
-                <li>Detected location is cached in your browser for 24 hours to reduce repeat prompts.</li>
-                <li>Location details are not stored on our server.</li>
+                <li>To show relevant holiday and date information.</li>
+                <li>To improve reliability, performance, and user experience.</li>
+                <li>To keep the service secure and prevent misuse.</li>
               </ul>
             </Section>
 
-            <Section title="Data Storage" delay={0.18}>
-              <p>Local storage may contain:</p>
+            <Section title="Data Retention" delay={0.18}>
               <ul className="list-disc space-y-2 pl-5">
-                <li>Detected location cache (24h)</li>
-                <li>Manually selected location preference</li>
+                <li>We retain data only as long as needed for service operation and legal obligations.</li>
+                <li>You can clear locally stored data through your browser settings at any time.</li>
               </ul>
             </Section>
 
             <Section title="Consent & Control" delay={0.21}>
               <p>
-                Allowing location enables automatic regional holiday matching. If denied, you can still use manual
-                location search at any time.
+                You control whether optional permissions are granted. You may update preferences or revoke permissions
+                through your browser/device settings.
               </p>
             </Section>
 
-            <Section title="Third-Party Services" delay={0.24}>
+            <Section title="Sharing of Information" delay={0.24}>
               <p>
-                Reverse geocoding uses OpenStreetMap Nominatim. See their{' '}
-                <a
-                  href="https://osmfoundation.org/wiki/Privacy_Policy"
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-accent-orange underline-offset-2 hover:underline"
-                >
-                  privacy policy
-                </a>
-                .
+                We do not sell your personal data. We may share limited information with service providers when
+                necessary to operate the app and comply with law.
               </p>
             </Section>
 
-            <Section title="Weather Data" delay={0.27}>
+            <Section title="Your Rights" delay={0.27}>
               <p>
-                WhatDayIsNext displays weather forecasts for your location. Here is how we handle weather-related data:
+                Depending on your region, you may have rights to access, correct, delete, or restrict use of your
+                personal information.
               </p>
-              <ul className="list-disc space-y-2 pl-5">
-                <li>
-                  <strong>What we collect:</strong> Your approximate coordinates (latitude and longitude) are used to
-                  fetch weather forecasts. These coordinates are derived from your browser location or manual location
-                  selection.
-                </li>
-                <li>
-                  <strong>API usage:</strong> We use the{' '}
-                  <a
-                    href="https://api.met.no/"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-accent-orange underline-offset-2 hover:underline"
-                  >
-                    met.no API
-                  </a>{' '}
-                  (Norwegian Meteorological Institute) to retrieve weather data. No personal information is shared with
-                  this service beyond geographic coordinates.
-                </li>
-                <li>
-                  <strong>Location handling:</strong> Coordinates are rounded to reduce precision before being used in
-                  weather queries or stored. This helps protect your exact location while still providing accurate
-                  forecasts.
-                </li>
-                <li>
-                  <strong>Caching:</strong> Weather data is cached on our server for up to 24 hours per location. This
-                  reduces API requests and improves load times. Cached data includes forecast information only, not
-                  user identifiers.
-                </li>
-              </ul>
+            </Section>
+
+            <Section title="Policy Updates" delay={0.3}>
+              <p>
+                We may update this Privacy Policy from time to time. Continued use of the app after changes means you
+                accept the updated policy.
+              </p>
             </Section>
           </div>
         </div>

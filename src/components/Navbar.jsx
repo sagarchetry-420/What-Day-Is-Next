@@ -1,13 +1,56 @@
+import { useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useTheme } from '../contexts/ThemeContext';
 
 function Navbar() {
   const { theme, toggleTheme } = useTheme();
   const isDark = theme === 'dark';
+  const [hasScrolledDown, setHasScrolledDown] = useState(false);
+  const previousScrollYRef = useRef(0);
+
+  useEffect(() => {
+    function handleScroll() {
+      const currentScrollY = window.scrollY;
+      const delta = currentScrollY - previousScrollYRef.current;
+      const isScrollingDown = delta > 1;
+
+      if (currentScrollY <= 8) {
+        setHasScrolledDown(false);
+      } else if (isScrollingDown) {
+        setHasScrolledDown(true);
+      }
+
+      previousScrollYRef.current = currentScrollY;
+    }
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   return (
-    <header className="w-full bg-transparent">
-      <div className="flex w-full items-center justify-between px-4 py-4 sm:px-6 sm:py-5 lg:px-10">
+    <motion.header
+      className="sticky top-0 z-50 w-full"
+      animate={hasScrolledDown ? { y: 14 } : { y: 0 }}
+      transition={{ duration: 0.35, ease: [0.25, 0.1, 0.25, 1] }}
+    >
+      <motion.div
+        layout
+        transition={{ layout: { duration: 0.35, ease: [0.25, 0.1, 0.25, 1] } }}
+        className={`flex items-center justify-between py-4 sm:py-5 ${
+          hasScrolledDown
+            ? 'mx-3 w-auto rounded-3xl bg-theme-card/90 px-8 shadow-sm backdrop-blur-md sm:mx-4 sm:px-10 lg:mx-6 lg:px-20'
+            : 'w-full bg-transparent px-4 sm:px-6 lg:px-10'
+        }`}
+        style={{
+          borderRadius: hasScrolledDown ? 28 : 0,
+        }}
+        animate={{
+          backgroundColor: hasScrolledDown ? 'var(--color-card-90)' : 'transparent',
+          boxShadow: hasScrolledDown
+            ? '0 1px 3px 0 rgb(0 0 0 / 0.1), 0 1px 2px -1px rgb(0 0 0 / 0.1)'
+            : '0 0 0 0 rgb(0 0 0 / 0)',
+        }}
+      >
         <div className="flex items-center">
           <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl text-accent-orange">
             <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" className="h-5 w-5">
@@ -58,8 +101,8 @@ function Navbar() {
             )}
           </AnimatePresence>
         </motion.button>
-      </div>
-    </header>
+      </motion.div>
+    </motion.header>
   );
 }
 
