@@ -31,7 +31,7 @@ const supabase = supabaseUrl && supabaseServiceRoleKey
 
 app.use(cors({
   origin: corsOrigin === '*' ? true : corsOrigin.split(',').map((value) => value.trim()),
-  methods: ['GET', 'HEAD', 'OPTIONS'],
+  methods: ['GET', 'HEAD', 'OPTIONS', 'POST'],
   allowedHeaders: ['Content-Type', 'Authorization']
 }));
 app.use(express.json());
@@ -42,12 +42,15 @@ const pendingDailyFetches = new Map();
 const pendingWeatherFetches = new Map();
 const pendingMonthlyReset = new Map();
 const weatherRateLimitStore = new Map();
+const feedbackRateLimitStore = new Map();
 const CALENDARIFIC_TIMEOUT_MS = 15_000;
 const MET_NO_TIMEOUT_MS = 12_000;
 const MET_NO_BASE_URL = 'https://api.met.no/weatherapi/locationforecast/2.0/compact';
 const MET_NO_USER_AGENT = process.env.MET_NO_USER_AGENT || 'WhatDayIsNext/1.0 (weather integration)';
 const weatherRateLimitWindowMs = Number(process.env.WEATHER_RATE_LIMIT_WINDOW_MS || 60_000);
 const weatherRateLimitMaxRequests = Number(process.env.WEATHER_RATE_LIMIT_MAX_REQUESTS || 30);
+const feedbackRateLimitWindowMs = Number(process.env.FEEDBACK_RATE_LIMIT_WINDOW_MS || 60_000);
+const feedbackRateLimitMaxRequests = Number(process.env.FEEDBACK_RATE_LIMIT_MAX_REQUESTS || 20);
 const COUNTRY_FETCH_CONCURRENCY = 8;
 const MONTHLY_RESET_KEY = 'monthly-reset-tracker';
 const TOMORROW_MONTH_SYNC_KEY = 'tomorrow-month-sync-tracker';
@@ -106,6 +109,29 @@ function weatherRateLimiter(req, res, next) {
 
   entry.count += 1;
   weatherRateLimitStore.set(key, entry);
+  return next();
+}
+
+function feedbackRateLimiter(req, res, next) {
+  const now = Date.now();
+  const key = `${getClientIp(req)}:${req.path}:${req.method}`;
+  const entry = feedbackRateLimitStore.get(key);
+
+  if (!entry || now - entry.windowStart >= feedbackRateLimitWindowMs) {
+    feedbackRateLimitStore.set(key, { count: 1, windowStart: now });
+    return next();
+  }
+
+  if (entry.count >= feedbackRateLimitMaxRequests) {
+    const retryAfterSeconds = Math.ceil((entry.windowStart + feedbackRateLimitWindowMs - now) / 1000);
+    res.set('Retry-After', String(Math.max(retryAfterSeconds, 1)));
+    return res.status(429).json({
+      message: `Too many feedback requests. Try again in ${Math.max(retryAfterSeconds, 1)} seconds.`
+    });
+  }
+
+  entry.count += 1;
+  feedbackRateLimitStore.set(key, entry);
   return next();
 }
 
@@ -804,6 +830,74 @@ app.get('/api/holidays/all', getAllHolidaysHandler);
 app.get('/api/holidays/verify', getAllHolidaysHandler);
 app.get('/api/holidays', getAllHolidaysHandler);
 
+async function getFeedbacksHandler(_req, res) {
+  try {
+    if (!supabase) {
+      return res.status(500).json({ message: 'Supabase is not configured on the server.' });
+    }
+
+    const { data, error } = await supabase
+      .from('feedbacks')
+      .select('id,name,email,message,created_at')
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      throw new Error(`Supabase read failed: ${error.message}`);
+    }
+
+    return res.json({ data: data || [] });
+  } catch (error) {
+    return res.status(502).json({
+      message: error?.message || 'Unexpected server error while fetching feedbacks.'
+    });
+  }
+}
+
+app.get('/api/feedbacks', feedbackRateLimiter, getFeedbacksHandler);
+app.get('/api/feedback', feedbackRateLimiter, getFeedbacksHandler);
+app.get('/api/feedback/all', feedbackRateLimiter, getFeedbacksHandler);
+
+async function createFeedbackHandler(req, res) {
+  try {
+    if (!supabase) {
+      return res.status(500).json({ message: 'Supabase is not configured on the server.' });
+    }
+
+    const name = String(req.body?.name || '').trim();
+    const email = String(req.body?.email || '').trim();
+    const message = String(req.body?.message || '').trim();
+
+    if (!message) {
+      return res.status(400).json({ message: 'Feedback message is required.' });
+    }
+
+    const payload = {
+      name: name || null,
+      email: email || null,
+      message
+    };
+
+    const { data, error } = await supabase
+      .from('feedbacks')
+      .insert(payload)
+      .select('id,name,email,message,created_at')
+      .single();
+
+    if (error) {
+      throw new Error(`Supabase insert failed: ${error.message}`);
+    }
+
+    return res.status(201).json({ data });
+  } catch (error) {
+    return res.status(502).json({
+      message: error?.message || 'Unexpected server error while saving feedback.'
+    });
+  }
+}
+
+app.post('/api/feedbacks', feedbackRateLimiter, createFeedbackHandler);
+app.post('/api/feedback', feedbackRateLimiter, createFeedbackHandler);
+
 app.get('/api/weather/tomorrow', weatherRateLimiter, async (req, res) => {
   const date = String(req.query.date || '');
   const lat = Number(req.query.lat);
@@ -885,7 +979,12 @@ setInterval(() => {
       weatherRateLimitStore.delete(key);
     }
   }
-}, Math.max(Math.max(rateLimitWindowMs, weatherRateLimitWindowMs), 30_000)).unref();
+  for (const [key, entry] of feedbackRateLimitStore.entries()) {
+    if (now - entry.windowStart >= feedbackRateLimitWindowMs) {
+      feedbackRateLimitStore.delete(key);
+    }
+  }
+}, Math.max(Math.max(Math.max(rateLimitWindowMs, weatherRateLimitWindowMs), feedbackRateLimitWindowMs), 30_000)).unref();
 
 app.listen(port, () => {
   console.log(`Holiday API server is running on port ${port}.`);

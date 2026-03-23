@@ -2,9 +2,10 @@ import { useMemo, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { searchLocations } from '../utils/locationLabels';
 
-function LocationSearch({ onSelect, disabled = false }) {
+function LocationSearch({ onSelect, disabled = false, successAnimationKey = 0 }) {
   const [query, setQuery] = useState('');
   const [focused, setFocused] = useState(false);
+  const [clearAnimationKey, setClearAnimationKey] = useState(0);
 
   const results = useMemo(() => searchLocations(query, 8), [query]);
   const showResults = focused && query.trim().length > 0;
@@ -18,10 +19,24 @@ function LocationSearch({ onSelect, disabled = false }) {
         initial={false}
         animate={{
           scale: focused ? 1.01 : 1,
+          y: successAnimationKey > 0 ? [0, -1, 0] : 0,
         }}
         transition={{ duration: 0.25, ease: 'easeOut' }}
-        className="search-input flex items-center gap-3 rounded-2xl px-5 py-3.5"
+        className="search-input search-input-animated flex items-center gap-3 rounded-2xl px-5 py-3.5"
       >
+        <AnimatePresence>
+          {clearAnimationKey > 0 && (
+            <motion.span
+              key={clearAnimationKey}
+              initial={{ opacity: 0.35, scale: 0.94 }}
+              animate={{ opacity: 0, scale: 1.04 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.35, ease: 'easeOut' }}
+              className="search-clear-indicator"
+              aria-hidden="true"
+            />
+          )}
+        </AnimatePresence>
         <motion.svg
           animate={{
             rotate: focused ? 12 : 0,
@@ -57,7 +72,10 @@ function LocationSearch({ onSelect, disabled = false }) {
               transition={{ duration: 0.15 }}
               type="button"
               className="shrink-0 rounded-full p-1.5 text-theme-muted transition-colors hover:text-theme-primary"
-              onClick={() => setQuery('')}
+              onClick={() => {
+                setClearAnimationKey((value) => value + 1);
+                setQuery('');
+              }}
             >
               <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" />
@@ -70,11 +88,12 @@ function LocationSearch({ onSelect, disabled = false }) {
       <AnimatePresence>
         {showResults && (
           <motion.div
-            initial={{ opacity: 0, y: -10, scale: 0.98 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -10, scale: 0.98 }}
-            transition={{ duration: 0.2, ease: 'easeOut' }}
-            className="search-results absolute left-0 right-0 z-50 mt-3 overflow-hidden rounded-2xl p-2"
+            layout
+            initial={{ opacity: 0, y: -8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.24, ease: 'easeOut' }}
+            className="search-results mt-3 overflow-x-hidden overflow-y-auto rounded-2xl p-2"
           >
             {results.length > 0 ? (
               results.map((result, index) => (

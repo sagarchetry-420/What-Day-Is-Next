@@ -23,6 +23,8 @@ function App() {
   const [weatherError, setWeatherError] = useState('');
   const [weatherLoading, setWeatherLoading] = useState(false);
   const [permissionPromptVisible, setPermissionPromptVisible] = useState(false);
+  const [pendingManualSearchId, setPendingManualSearchId] = useState(null);
+  const [searchSuccessAnimationKey, setSearchSuccessAnimationKey] = useState(0);
 
   useEffect(() => {
     let active = true;
@@ -121,6 +123,7 @@ function App() {
   const permissionDenied = Boolean(locationError && locationError.toLowerCase().includes('denied'));
 
   const handleSelectLocation = (result) => {
+    setPendingManualSearchId((value) => (typeof value === 'number' ? value + 1 : 1));
     setManualLocation(
       result.countryCode,
       result.regionCode,
@@ -131,6 +134,18 @@ function App() {
     );
     setPermissionPromptVisible(false);
   };
+
+  useEffect(() => {
+    if (pendingManualSearchId === null || isLoading || error) {
+      return;
+    }
+
+    if (holidays.length > 0) {
+      setSearchSuccessAnimationKey((value) => value + 1);
+    }
+
+    setPendingManualSearchId(null);
+  }, [pendingManualSearchId, isLoading, error, holidays.length]);
 
   return (
     <div className="flex min-h-screen flex-col">
@@ -174,7 +189,11 @@ function App() {
               )}
             </div>
 
-            <LocationSearch onSelect={handleSelectLocation} disabled={locationLoading} />
+            <LocationSearch
+              onSelect={handleSelectLocation}
+              disabled={locationLoading}
+              successAnimationKey={searchSuccessAnimationKey}
+            />
           </div>
         </section>
 
