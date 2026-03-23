@@ -8,12 +8,12 @@ import {
 /**
  * Custom hook for managing user location detection and state
  * @returns {{
- *   location: {countryCode: string, countryName: string, region: string, regionCode: string} | null,
+ *   location: {countryCode: string, countryName: string, region: string, regionCode: string, latitude: number | null, longitude: number | null} | null,
  *   loading: boolean,
  *   error: string | null,
  *   source: 'geolocation' | 'cache' | 'preference' | 'default' | null,
  *   refresh: () => Promise<void>,
- *   setManualLocation: (countryCode: string, regionCode?: string) => void
+ *   setManualLocation: (countryCode: string, regionCode?: string, countryName?: string, region?: string, latitude?: number | null, longitude?: number | null) => void
  * }}
  */
 export function useLocation() {
@@ -35,7 +35,9 @@ export function useLocation() {
         countryCode: result.countryCode,
         countryName: result.countryName,
         region: result.region,
-        regionCode: result.regionCode
+        regionCode: result.regionCode,
+        latitude: result.latitude,
+        longitude: result.longitude
       });
       setSource(result.source);
     } catch (err) {
@@ -45,7 +47,9 @@ export function useLocation() {
         countryCode: 'US',
         countryName: 'United States',
         region: '',
-        regionCode: ''
+        regionCode: '',
+        latitude: 37.0902,
+        longitude: -95.7129
       });
       setSource('default');
     } finally {
@@ -61,14 +65,16 @@ export function useLocation() {
     await loadLocation(true);
   }, [loadLocation]);
 
-  const setManualLocation = useCallback((countryCode, regionCode = '', countryName = '', region = '') => {
-    saveLocationPreference({ countryCode, regionCode, countryName, region });
+  const setManualLocation = useCallback((countryCode, regionCode = '', countryName = '', region = '', latitude = null, longitude = null) => {
+    saveLocationPreference({ countryCode, regionCode, countryName, region, latitude, longitude });
     setLocation((prev) => ({
       ...prev,
       countryCode,
       regionCode,
       countryName: countryName || prev?.countryName || '',
-      region: region || prev?.region || ''
+      region: region || prev?.region || '',
+      latitude: Number.isFinite(latitude) ? latitude : prev?.latitude ?? null,
+      longitude: Number.isFinite(longitude) ? longitude : prev?.longitude ?? null
     }));
     setSource('preference');
   }, []);

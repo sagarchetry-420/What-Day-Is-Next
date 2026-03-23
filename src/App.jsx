@@ -3,6 +3,7 @@ import { motion } from 'framer-motion';
 import { useTomorrowInfo } from './hooks/useTomorrowInfo';
 import { useLocation } from './hooks/useLocation';
 import { fetchHolidaysByDate } from './services/holidayApi';
+import { fetchTomorrowWeather } from './services/weatherApi';
 import { formatLocationLabel } from './utils/locationLabels';
 import { filterHolidaysByLocation, formatHoliday } from './utils/holidayFilter';
 import Navbar from './components/Navbar';
@@ -18,6 +19,9 @@ function App() {
   const [allHolidays, setAllHolidays] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const [weather, setWeather] = useState(null);
+  const [weatherError, setWeatherError] = useState('');
+  const [weatherLoading, setWeatherLoading] = useState(false);
   const [permissionPromptVisible, setPermissionPromptVisible] = useState(false);
 
   useEffect(() => {
@@ -52,6 +56,43 @@ function App() {
   }, [isoDate]);
 
   useEffect(() => {
+    if (!location || !Number.isFinite(location.latitude) || !Number.isFinite(location.longitude)) {
+      setWeather(null);
+      setWeatherError('');
+      return;
+    }
+
+    let active = true;
+
+    async function loadWeather() {
+      setWeatherLoading(true);
+      setWeatherError('');
+
+      try {
+        const data = await fetchTomorrowWeather(isoDate, location.latitude, location.longitude);
+        if (active) {
+          setWeather(data);
+        }
+      } catch (err) {
+        if (active) {
+          setWeather(null);
+          setWeatherError(err instanceof Error ? err.message : 'Unexpected error while loading weather.');
+        }
+      } finally {
+        if (active) {
+          setWeatherLoading(false);
+        }
+      }
+    }
+
+    loadWeather();
+
+    return () => {
+      active = false;
+    };
+  }, [isoDate, location]);
+
+  useEffect(() => {
     if (!navigator?.permissions) {
       return;
     }
@@ -80,7 +121,14 @@ function App() {
   const permissionDenied = Boolean(locationError && locationError.toLowerCase().includes('denied'));
 
   const handleSelectLocation = (result) => {
-    setManualLocation(result.countryCode, result.regionCode, result.countryName, result.regionName);
+    setManualLocation(
+      result.countryCode,
+      result.regionCode,
+      result.countryName,
+      result.regionName,
+      result.latitude,
+      result.longitude
+    );
     setPermissionPromptVisible(false);
   };
 
@@ -102,6 +150,9 @@ function App() {
             error={error}
             holidays={holidays}
             locationLabel={locationLabel}
+            weather={weather}
+            weatherError={weatherError}
+            weatherLoading={weatherLoading}
           />
         </div>
 

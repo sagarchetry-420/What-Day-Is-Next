@@ -10,6 +10,7 @@
 - Set `calendarific_API_KEY`
 - Set `SUPABASE_URL`
 - Set `SUPABASE_SERVICE_ROLE_KEY`
+- Set optional `MET_NO_USER_AGENT` (recommended with contact/app info)
 
 3. Start both backend and frontend in development:
 `npm run dev:all`
@@ -29,6 +30,7 @@ The backend exposes:
 - `GET /api/holidays/all`
 - `GET /api/holidays/verify`
 - `GET /api/holidays/tomorrow?date=YYYY-MM-DD`
+- `GET /api/weather/tomorrow?date=YYYY-MM-DD&lat=..&lon=..`
 
 Request limits and optimization:
 - Calendarific monthly quota target: 500 requests (example usage noted at 300)
@@ -71,6 +73,7 @@ System Testing:
 - `src/` frontend React app
 - `server/` backend API and scheduled sync
 - `supabase/` schema/migration SQL
+- `supabase/weather_cache.sql` weather cache table for location/date-based forecast reuse
 - `vite.config.js` dev proxy and build config
 
 ## Known Limitations

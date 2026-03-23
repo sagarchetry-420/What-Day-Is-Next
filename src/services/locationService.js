@@ -1,7 +1,56 @@
+import { Country, State } from 'country-state-city';
+
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/reverse';
 const LOCATION_STORAGE_KEY = 'user-location-preference';
 const LOCATION_CACHE_KEY = 'location-cache';
 const CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+const COUNTRY_BY_CODE = new Map();
+const STATES_BY_COUNTRY = new Map();
+
+function getCountryStateLoaders() {
+  if (COUNTRY_BY_CODE.size && STATES_BY_COUNTRY.size) {
+    return;
+  }
+
+  try {
+    const countries = Country.getAllCountries();
+    countries.forEach((country) => {
+      COUNTRY_BY_CODE.set(country.isoCode, country);
+      STATES_BY_COUNTRY.set(country.isoCode, State.getStatesOfCountry(country.isoCode));
+    });
+  } catch {
+    // Keep empty maps; we'll fallback to defaults
+  }
+}
+
+function isValidNumber(value) {
+  return Number.isFinite(Number(value));
+}
+
+function resolveCoordinates(countryCode = '', regionCode = '') {
+  getCountryStateLoaders();
+  const code = String(countryCode || '').toUpperCase();
+  const region = String(regionCode || '').toUpperCase();
+
+  const states = STATES_BY_COUNTRY.get(code) || [];
+  const matchedState = states.find((state) => state.isoCode.toUpperCase() === region);
+  if (matchedState && isValidNumber(matchedState.latitude) && isValidNumber(matchedState.longitude)) {
+    return {
+      latitude: Number(matchedState.latitude),
+      longitude: Number(matchedState.longitude)
+    };
+  }
+
+  const country = COUNTRY_BY_CODE.get(code);
+  if (country && isValidNumber(country.latitude) && isValidNumber(country.longitude)) {
+    return {
+      latitude: Number(country.latitude),
+      longitude: Number(country.longitude)
+    };
+  }
+
+  return null;
+}
 
 /**
  * Get user's current position using browser Geolocation API
@@ -106,7 +155,9 @@ export async function reverseGeocode(latitude, longitude) {
     countryCode,
     countryName,
     region,
-    regionCode
+    regionCode,
+    latitude,
+    longitude
   };
 }
 
@@ -155,6 +206,10 @@ export function getCachedLocation() {
   } catch {
     return null;
   }
+}
+
+function hasCoordinates(location) {
+  return isValidNumber(location?.latitude) && isValidNumber(location?.longitude);
 }
 
 /**
@@ -206,7 +261,22 @@ export async function detectLocation() {
   // 1. Check cache first
   const cached = getCachedLocation();
   if (cached) {
-    return { ...cached, source: 'cache' };
+    if (hasCoordinates(cached)) {
+      return { ...cached, source: 'cache' };
+    }
+
+    const resolved = resolveCoordinates(cached.countryCode, cached.regionCode);
+    if (resolved) {
+      const upgraded = { ...cached, ...resolved };
+      cacheLocation(upgraded);
+      saveLocationPreference({
+        countryCode: upgraded.countryCode,
+        regionCode: upgraded.regionCode,
+        latitude: upgraded.latitude,
+        longitude: upgraded.longitude
+      });
+      return { ...upgraded, source: 'cache' };
+    }
   }
 
   // 2. Try browser geolocation
@@ -216,7 +286,9 @@ export async function detectLocation() {
     cacheLocation(location);
     saveLocationPreference({
       countryCode: location.countryCode,
-      regionCode: location.regionCode
+      regionCode: location.regionCode,
+      latitude: location.latitude,
+      longitude: location.longitude
     });
     return { ...location, source: 'geolocation' };
   } catch {
@@ -226,11 +298,29 @@ export async function detectLocation() {
   // 3. Try stored preference
   const preference = getStoredPreference();
   if (preference?.countryCode) {
+    const resolved = resolveCoordinates(preference.countryCode, preference.regionCode);
+    const latitude = isValidNumber(preference.latitude)
+      ? Number(preference.latitude)
+      : (resolved?.latitude ?? null);
+    const longitude = isValidNumber(preference.longitude)
+      ? Number(preference.longitude)
+      : (resolved?.longitude ?? null);
+
+    if (latitude !== null && longitude !== null) {
+      saveLocationPreference({
+        ...preference,
+        latitude,
+        longitude
+      });
+    }
+
     return {
       countryCode: preference.countryCode,
       countryName: '',
       region: '',
       regionCode: preference.regionCode || '',
+      latitude,
+      longitude,
       source: 'preference'
     };
   }
@@ -241,6 +331,8 @@ export async function detectLocation() {
     countryName: 'United States',
     region: '',
     regionCode: '',
+    latitude: 37.0902,
+    longitude: -95.7129,
     source: 'default'
   };
 }

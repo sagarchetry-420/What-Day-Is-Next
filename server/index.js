@@ -38,11 +38,19 @@ app.disable('x-powered-by');
 
 const rateLimitStore = new Map();
 const pendingDailyFetches = new Map();
+const pendingWeatherFetches = new Map();
 const pendingMonthlyReset = new Map();
+const weatherRateLimitStore = new Map();
 const CALENDARIFIC_TIMEOUT_MS = 15_000;
+const MET_NO_TIMEOUT_MS = 12_000;
+const MET_NO_BASE_URL = 'https://api.met.no/weatherapi/locationforecast/2.0/compact';
+const MET_NO_USER_AGENT = process.env.MET_NO_USER_AGENT || 'WhatDayIsNext/1.0 (weather integration)';
+const weatherRateLimitWindowMs = Number(process.env.WEATHER_RATE_LIMIT_WINDOW_MS || 60_000);
+const weatherRateLimitMaxRequests = Number(process.env.WEATHER_RATE_LIMIT_MAX_REQUESTS || 30);
 const COUNTRY_FETCH_CONCURRENCY = 8;
 const MONTHLY_RESET_KEY = 'monthly-reset-tracker';
 const TOMORROW_MONTH_SYNC_KEY = 'tomorrow-month-sync-tracker';
+let weatherCacheTableAvailable = true;
 
 function getClientIp(req) {
   const forwarded = req.headers['x-forwarded-for'];
@@ -77,8 +85,44 @@ function apiRateLimiter(req, res, next) {
 
 app.use('/api', apiRateLimiter);
 
+function weatherRateLimiter(req, res, next) {
+  const now = Date.now();
+  const key = `${getClientIp(req)}:${req.path}`;
+  const entry = weatherRateLimitStore.get(key);
+
+  if (!entry || now - entry.windowStart >= weatherRateLimitWindowMs) {
+    weatherRateLimitStore.set(key, { count: 1, windowStart: now });
+    return next();
+  }
+
+  if (entry.count >= weatherRateLimitMaxRequests) {
+    const retryAfterSeconds = Math.ceil((entry.windowStart + weatherRateLimitWindowMs - now) / 1000);
+    res.set('Retry-After', String(Math.max(retryAfterSeconds, 1)));
+    return res.status(429).json({
+      message: 'Weather data is temporarily unavailable. Please try again later.'
+    });
+  }
+
+  entry.count += 1;
+  weatherRateLimitStore.set(key, entry);
+  return next();
+}
+
 function isValidIsoDate(value) {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
+}
+
+function isValidCoordinate(value, min, max) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && numeric >= min && numeric <= max;
+}
+
+function normalizeCoordinate(value, digits = 4) {
+  return Number(Number(value).toFixed(digits));
+}
+
+function weatherCacheKeyFor(date, lat, lon) {
+  return `weather-${date}-${normalizeCoordinate(lat)}-${normalizeCoordinate(lon)}`;
 }
 
 function normalizeRegionCode(value) {
@@ -245,6 +289,199 @@ async function upsertDailyHolidays(cacheKey, date, data) {
   if (error) {
     throw new Error(`Supabase upsert failed: ${error.message}`);
   }
+}
+
+async function getCachedWeather(cacheKey) {
+  if (!weatherCacheTableAvailable) {
+    return null;
+  }
+
+  const { data, error } = await supabase
+    .from('weather_cache')
+    .select('cache_key, weather_date, payload, last_fetched_at')
+    .eq('cache_key', cacheKey)
+    .maybeSingle();
+
+  if (error) {
+    if (error.message?.includes("Could not find the table 'public.weather_cache'")) {
+      weatherCacheTableAvailable = false;
+      return null;
+    }
+    throw new Error(`Supabase read failed: ${error.message}`);
+  }
+
+  return data || null;
+}
+
+async function upsertWeatherCache(cacheKey, weatherDate, latitude, longitude, payload) {
+  if (!weatherCacheTableAvailable) {
+    return;
+  }
+
+  const { error } = await supabase.from('weather_cache').upsert(
+    [{
+      cache_key: cacheKey,
+      weather_date: weatherDate,
+      latitude: normalizeCoordinate(latitude),
+      longitude: normalizeCoordinate(longitude),
+      payload
+    }],
+    { onConflict: 'cache_key' }
+  );
+
+  if (error) {
+    if (error.message?.includes("Could not find the table 'public.weather_cache'")) {
+      weatherCacheTableAvailable = false;
+      return;
+    }
+    throw new Error(`Supabase upsert failed: ${error.message}`);
+  }
+}
+
+function toIsoDateOnly(value) {
+  return String(value || '').split('T')[0];
+}
+
+function getHourFromIsoTime(time) {
+  const date = new Date(time);
+  if (Number.isNaN(date.getTime())) {
+    return -1;
+  }
+  return date.getHours();
+}
+
+function isDaytimeHour(hour) {
+  return hour >= 6 && hour < 18;
+}
+
+function normalizeSymbolToFriendlyCondition(symbolCode, temperature, windSpeed, hour) {
+  const symbol = String(symbolCode || '').toLowerCase();
+  const temp = Number(temperature);
+  const wind = Number(windSpeed);
+
+  if (Number.isFinite(wind) && wind >= 10) {
+    return 'Windy';
+  }
+  if (Number.isFinite(temp) && temp <= 2) {
+    return 'Cold';
+  }
+  if (symbol.includes('rain') || symbol.includes('sleet') || symbol.includes('snow') || symbol.includes('shower')) {
+    return 'Rainy';
+  }
+  if (symbol.includes('clear')) {
+    return isDaytimeHour(hour) ? 'Sunny' : 'Clear';
+  }
+  if (symbol.includes('cloud')) {
+    return 'Cloudy';
+  }
+  return Number.isFinite(temp) && temp <= 5 ? 'Cold' : 'Clear';
+}
+
+function summarizeTemperatureSegment(entries) {
+  if (!entries.length) {
+    return null;
+  }
+
+  const temps = entries.map((entry) => entry.temperature_c);
+  const avg = temps.reduce((sum, value) => sum + value, 0) / temps.length;
+
+  return {
+    avg_temp_c: Number(avg.toFixed(1)),
+    min_temp_c: Number(Math.min(...temps).toFixed(1)),
+    max_temp_c: Number(Math.max(...temps).toFixed(1))
+  };
+}
+
+function pickPrimaryCondition(entries) {
+  if (!entries.length) {
+    return 'Clear';
+  }
+
+  const counts = new Map();
+  for (const entry of entries) {
+    counts.set(entry.condition, (counts.get(entry.condition) || 0) + 1);
+  }
+
+  return [...counts.entries()].sort((a, b) => b[1] - a[1])[0][0];
+}
+
+function getTomorrowWeatherSummary(series) {
+  const target = new Date();
+  target.setDate(target.getDate() + 1);
+  const targetDate = toIsoDateOnly(target.toISOString());
+
+  const tomorrowEntries = (Array.isArray(series) ? series : [])
+    .filter((entry) => toIsoDateOnly(entry?.time) === targetDate && entry?.data?.instant?.details)
+    .map((entry) => ({
+      time: entry.time,
+      hour: getHourFromIsoTime(entry.time),
+      temperature_c: entry.data.instant.details.air_temperature,
+      wind_speed_mps: entry.data.instant.details.wind_speed,
+      symbol:
+        entry?.data?.next_1_hours?.summary?.symbol_code ||
+        entry?.data?.next_6_hours?.summary?.symbol_code ||
+        entry?.data?.next_12_hours?.summary?.symbol_code ||
+        null
+    }))
+    .filter((entry) => Number.isFinite(entry.temperature_c) && entry.hour >= 0)
+    .map((entry) => ({
+      ...entry,
+      condition: normalizeSymbolToFriendlyCondition(
+        entry.symbol,
+        entry.temperature_c,
+        entry.wind_speed_mps,
+        entry.hour
+      )
+    }));
+
+  if (!tomorrowEntries.length) {
+    throw new Error('No weather timeseries data available for tomorrow.');
+  }
+
+  const dayEntries = tomorrowEntries.filter((entry) => isDaytimeHour(entry.hour));
+  const nightEntries = tomorrowEntries.filter((entry) => !isDaytimeHour(entry.hour));
+  const noonCandidate = tomorrowEntries.find((entry) => entry.time.includes('T12:'));
+  const selected = noonCandidate || tomorrowEntries[Math.floor(tomorrowEntries.length / 2)];
+  const dateLabel = new Date(`${targetDate}T00:00:00`).toLocaleDateString('en-US', { weekday: 'long' });
+  const daySummary = summarizeTemperatureSegment(dayEntries);
+  const nightSummary = summarizeTemperatureSegment(nightEntries);
+
+  return {
+    date: targetDate,
+    weekday: dateLabel,
+    temperature_c: Number(selected.temperature_c.toFixed(1)),
+    summary: selected.symbol ? selected.symbol.replace(/_/g, ' ') : 'forecast unavailable',
+    condition: selected.condition,
+    daytime: daySummary
+      ? { ...daySummary, condition: pickPrimaryCondition(dayEntries) }
+      : null,
+    nighttime: nightSummary
+      ? { ...nightSummary, condition: pickPrimaryCondition(nightEntries) }
+      : null,
+    time_breakdown: tomorrowEntries.map((entry) => ({
+      time: entry.time,
+      hour_label: `${String(entry.hour).padStart(2, '0')}:00`,
+      temperature_c: Number(entry.temperature_c.toFixed(1)),
+      condition: entry.condition
+    })),
+    observed_at: selected.time
+  };
+}
+
+async function fetchTomorrowWeatherFromMetNo(latitude, longitude) {
+  const response = await axios.get(MET_NO_BASE_URL, {
+    params: {
+      lat: normalizeCoordinate(latitude),
+      lon: normalizeCoordinate(longitude)
+    },
+    headers: {
+      'User-Agent': MET_NO_USER_AGENT
+    },
+    timeout: MET_NO_TIMEOUT_MS
+  });
+
+  const timeseries = response?.data?.properties?.timeseries || [];
+  return getTomorrowWeatherSummary(timeseries);
 }
 
 function getCurrentMonthKey() {
@@ -553,6 +790,69 @@ app.get('/api/holidays/all', getAllHolidaysHandler);
 app.get('/api/holidays/verify', getAllHolidaysHandler);
 app.get('/api/holidays', getAllHolidaysHandler);
 
+app.get('/api/weather/tomorrow', weatherRateLimiter, async (req, res) => {
+  const date = String(req.query.date || '');
+  const lat = Number(req.query.lat);
+  const lon = Number(req.query.lon);
+
+  try {
+    if (!supabase) {
+      return res.status(500).json({ message: 'Supabase is not configured on the server.' });
+    }
+
+    if (!isValidIsoDate(date)) {
+      return res.status(400).json({ message: 'Invalid date format. Use YYYY-MM-DD.' });
+    }
+
+    if (!isValidCoordinate(lat, -90, 90) || !isValidCoordinate(lon, -180, 180)) {
+      return res.status(400).json({ message: 'Invalid coordinates. Use lat/lon decimal values.' });
+    }
+
+    const cacheKey = weatherCacheKeyFor(date, lat, lon);
+    const cached = await getCachedWeather(cacheKey);
+    if (cached && String(cached.weather_date) === date) {
+      return res.json({ data: cached.payload, cached: true });
+    }
+
+    if (!pendingWeatherFetches.has(cacheKey)) {
+      pendingWeatherFetches.set(
+        cacheKey,
+        (async () => {
+          const fresh = await fetchTomorrowWeatherFromMetNo(lat, lon);
+          await upsertWeatherCache(cacheKey, date, lat, lon, fresh);
+          return fresh;
+        })()
+      );
+    }
+
+    const weather = await pendingWeatherFetches.get(cacheKey);
+    return res.json({ data: weather, cached: weatherCacheTableAvailable ? false : null });
+  } catch (error) {
+    const cacheKey = isValidIsoDate(date) && isValidCoordinate(lat, -90, 90) && isValidCoordinate(lon, -180, 180)
+      ? weatherCacheKeyFor(date, lat, lon)
+      : null;
+
+    if (cacheKey) {
+      try {
+        const stale = await getCachedWeather(cacheKey);
+        if (stale?.payload) {
+          return res.json({ data: stale.payload, cached: true, stale: true });
+        }
+      } catch {
+        // ignore fallback read failures
+      }
+    }
+
+    return res.status(502).json({
+      message: error?.message || 'Unexpected server error while fetching weather.'
+    });
+  } finally {
+    if (isValidIsoDate(date) && isValidCoordinate(lat, -90, 90) && isValidCoordinate(lon, -180, 180)) {
+      pendingWeatherFetches.delete(weatherCacheKeyFor(date, lat, lon));
+    }
+  }
+});
+
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
 });
@@ -564,7 +864,12 @@ setInterval(() => {
       rateLimitStore.delete(key);
     }
   }
-}, Math.max(rateLimitWindowMs, 30_000)).unref();
+  for (const [key, entry] of weatherRateLimitStore.entries()) {
+    if (now - entry.windowStart >= weatherRateLimitWindowMs) {
+      weatherRateLimitStore.delete(key);
+    }
+  }
+}, Math.max(Math.max(rateLimitWindowMs, weatherRateLimitWindowMs), 30_000)).unref();
 
 app.listen(port, () => {
   console.log(`Holiday API server is running on port ${port}.`);

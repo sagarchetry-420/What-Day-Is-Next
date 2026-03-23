@@ -1,6 +1,16 @@
 import { AnimatePresence, motion } from 'framer-motion';
 
-function HeroCard({ weekday, fullDate, isLoading, error, holidays, locationLabel }) {
+function HeroCard({
+  weekday,
+  fullDate,
+  isLoading,
+  error,
+  holidays,
+  locationLabel,
+  weather,
+  weatherError,
+  weatherLoading
+}) {
   const primaryHoliday = holidays.length > 0 ? holidays[0] : null;
 
   return (
@@ -61,9 +71,9 @@ function HeroCard({ weekday, fullDate, isLoading, error, holidays, locationLabel
             </motion.p>
           )}
 
-          {!isLoading && !error && primaryHoliday && (
-            <motion.div
-              key="holiday"
+            {!isLoading && !error && primaryHoliday && (
+              <motion.div
+                key="holiday"
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -8 }}
@@ -71,11 +81,47 @@ function HeroCard({ weekday, fullDate, isLoading, error, holidays, locationLabel
               className="flex flex-col items-center gap-2"
             >
               <span className="text-xs uppercase tracking-widest text-theme-muted">Holiday</span>
-              <p className="text-lg font-semibold text-accent-emerald sm:text-xl lg:text-2xl">
-                {primaryHoliday.name}
-              </p>
-            </motion.div>
-          )}
+                <p className="text-lg font-semibold text-accent-emerald sm:text-xl lg:text-2xl">
+                  {primaryHoliday.name}
+                </p>
+              </motion.div>
+            )}
+
+            {!isLoading && !error && (
+              <motion.div
+                key="weather"
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.3 }}
+                className="mt-4 flex flex-col items-center gap-1"
+              >
+                <span className="text-xs uppercase tracking-widest text-theme-muted">Weather</span>
+                {weatherLoading && <p className="text-sm text-theme-secondary sm:text-base">Loading tomorrow weather...</p>}
+                {!weatherLoading && weather && (
+                  <div className="flex flex-col items-center gap-1 text-sm text-theme-secondary sm:text-base">
+                    <p>
+                      {weather.weekday || 'Tomorrow'} • {weather.condition || weather.summary} • {weather.temperature_c}°C
+                    </p>
+                    {weather.daytime && (
+                      <p>
+                        Day: {weather.daytime.condition} {weather.daytime.avg_temp_c}°C
+                        {' '}({weather.daytime.min_temp_c}°C–{weather.daytime.max_temp_c}°C)
+                      </p>
+                    )}
+                    {weather.nighttime && (
+                      <p>
+                        Night: {weather.nighttime.condition} {weather.nighttime.avg_temp_c}°C
+                        {' '}({weather.nighttime.min_temp_c}°C–{weather.nighttime.max_temp_c}°C)
+                      </p>
+                    )}
+                  </div>
+                )}
+                {!weatherLoading && !weather && weatherError && (
+                  <p className="text-sm text-theme-secondary sm:text-base">{weatherError}</p>
+                )}
+              </motion.div>
+            )}
 
           {!isLoading && !error && holidays.length === 0 && (
             <motion.p
