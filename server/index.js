@@ -2,10 +2,12 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const axios = require('axios');
+const path = require('path');
 const { createClient } = require('@supabase/supabase-js');
 const { createMonthlyHolidayScheduler } = require('./holidaySync');
 
-dotenv.config();
+dotenv.config({ path: path.resolve(__dirname, '.env') });
+dotenv.config({ path: path.resolve(__dirname, '..', '.env') });
 
 const app = express();
 const port = Number(process.env.PORT || 8787);
@@ -55,6 +57,19 @@ const COUNTRY_FETCH_CONCURRENCY = 8;
 const MONTHLY_RESET_KEY = 'monthly-reset-tracker';
 const TOMORROW_MONTH_SYNC_KEY = 'tomorrow-month-sync-tracker';
 let weatherCacheTableAvailable = true;
+
+function logServerError(context, error) {
+  console.error(`[server-error] ${context}`, {
+    message: error?.message || 'unknown error',
+    status: error?.response?.status || null,
+    code: error?.code || null
+  });
+}
+
+function sendSafeError(res, status, clientMessage, context, error) {
+  logServerError(context, error);
+  return res.status(status).json({ message: clientMessage });
+}
 
 function getClientIp(req) {
   const forwarded = req.headers['x-forwarded-for'];
@@ -769,12 +784,13 @@ app.get('/api/holidays/tomorrow', async (req, res) => {
     const holidays = await pendingDailyFetches.get(cacheKey);
     return res.json({ data: holidays });
   } catch (error) {
-    const message =
-      error?.response?.data?.meta?.error_detail ||
-      error?.message ||
-      'Unexpected server error while fetching holidays.';
-
-    return res.status(502).json({ message });
+    return sendSafeError(
+      res,
+      502,
+      'Could not fetch holiday data right now. Please try again later.',
+      'holidays.tomorrow',
+      error
+    );
   } finally {
     const date = String(req.query.date || '');
     if (isValidIsoDate(date)) {
@@ -820,9 +836,13 @@ async function getAllHolidaysHandler(req, res) {
 
     return res.json({ data: data || [] });
   } catch (error) {
-    return res.status(502).json({
-      message: error?.message || 'Unexpected server error while fetching all holidays.'
-    });
+    return sendSafeError(
+      res,
+      502,
+      'Could not fetch holidays right now. Please try again later.',
+      'holidays.all',
+      error
+    );
   }
 }
 
@@ -847,9 +867,13 @@ async function getFeedbacksHandler(_req, res) {
 
     return res.json({ data: data || [] });
   } catch (error) {
-    return res.status(502).json({
-      message: error?.message || 'Unexpected server error while fetching feedbacks.'
-    });
+    return sendSafeError(
+      res,
+      502,
+      'Could not fetch feedback right now. Please try again later.',
+      'feedback.list',
+      error
+    );
   }
 }
 
@@ -889,9 +913,13 @@ async function createFeedbackHandler(req, res) {
 
     return res.status(201).json({ data });
   } catch (error) {
-    return res.status(502).json({
-      message: error?.message || 'Unexpected server error while saving feedback.'
-    });
+    return sendSafeError(
+      res,
+      502,
+      'Could not save feedback right now. Please try again later.',
+      'feedback.create',
+      error
+    );
   }
 }
 
@@ -953,9 +981,13 @@ app.get('/api/weather/tomorrow', weatherRateLimiter, async (req, res) => {
       }
     }
 
-    return res.status(502).json({
-      message: error?.message || 'Unexpected server error while fetching weather.'
-    });
+    return sendSafeError(
+      res,
+      502,
+      'Could not fetch weather data right now. Please try again later.',
+      'weather.tomorrow',
+      error
+    );
   } finally {
     if (isValidIsoDate(date) && isValidCoordinate(lat, -90, 90) && isValidCoordinate(lon, -180, 180)) {
       pendingWeatherFetches.delete(weatherCacheKeyFor(date, lat, lon));

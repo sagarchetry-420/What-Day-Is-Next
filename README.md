@@ -4,7 +4,8 @@
 
 ## Setup Instructions
 1. Install dependencies:
-`npm install`
+`cd client && npm install`
+`cd ../server && npm install`
 
 2. Configure environment variables:
 - Set `calendarific_API_KEY`
@@ -13,15 +14,19 @@
 - Set optional `MET_NO_USER_AGENT` (recommended with contact/app info)
 
 3. Start both backend and frontend in development:
-`npm run dev:all`
+Backend:
+`cd server && npm run dev`
+
+Frontend:
+`cd client && npm run dev`
 
 4. Open:
 `http://localhost:5173`
 
 Production commands:
-- Build frontend: `npm run build`
-- Start server: `npm start`
-- Run tests: `npm test`
+- Build frontend: `cd client && npm run build`
+- Start server: `cd server && npm start`
+- Run tests: `cd client && npm test`
 
 ## API Usage
 The backend exposes:
@@ -62,7 +67,7 @@ System Testing:
 - Verified API behavior for health, valid requests, and invalid date handling
 
 ## Build and Deployment
-- Build the frontend with `npm run build`.
+- Build the frontend with `cd client && npm run build`.
 - Deploy static frontend (e.g., Vercel/Netlify) and run backend as Node service.
 - Ensure HTTPS is enabled at hosting/platform level.
 - Configure `CORS_ORIGIN` to only trusted frontend domains.
@@ -70,11 +75,12 @@ System Testing:
 - Configure platform-level gzip/brotli and cache headers for static assets.
 
 ## Project Structure
-- `src/` frontend React app
+- `client/src/` frontend React app
+- `client/public/` static frontend assets
+- `client/vite.config.js` frontend dev proxy and build config
 - `server/` backend API and scheduled sync
 - `supabase/` schema/migration SQL
 - `supabase/weather_cache.sql` weather cache table for location/date-based forecast reuse
-- `vite.config.js` dev proxy and build config
 
 ## Known Limitations
 - Holiday coverage is dependent on Calendarific data availability per country/date
