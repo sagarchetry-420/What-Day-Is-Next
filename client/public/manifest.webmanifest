@@ -1,0 +1,17 @@
+{
+  "name": "WhatDayIsNext",
+  "short_name": "WhatDayIsNext",
+  "description": "Discover what day is tomorrow with location-based holidays.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#0f172a",
+  "icons": [
+    {
+      "src": "/assets/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}
