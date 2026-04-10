@@ -222,8 +222,10 @@ body {
   align-items: center;
   justify-content: center;
   padding: 1rem;
-  background: rgba(0, 0, 0, 0.5);
-  animation: pwa-overlay-fade-in 0.2s ease-out;
+  background: rgba(0, 0, 0, 0.42);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  animation: pwa-overlay-fade-in 0.22s ease-out;
 }
 
 .pwa-install-modal {
@@ -235,7 +237,7 @@ body {
   padding: 1.25rem;
   backdrop-filter: blur(16px);
   box-shadow: 0 16px 50px rgba(0, 0, 0, 0.35);
-  animation: pwa-modal-pop-in 0.26s cubic-bezier(0.22, 1, 0.36, 1);
+  animation: pwa-modal-pop-in 0.24s ease-out;
 }
 
 @keyframes pwa-overlay-fade-in {
@@ -250,7 +252,7 @@ body {
 @keyframes pwa-modal-pop-in {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.98);
+    transform: translateY(6px) scale(0.985);
   }
   to {
     opacity: 1;
