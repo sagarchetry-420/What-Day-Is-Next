@@ -2,31 +2,6 @@
 ## Project Overview
 `What Day Is Next` shows tomorrow’s weekday/date and relevant holidays for the user’s detected or manually selected location. It uses a React + Vite frontend and an Express backend that integrates with Calendarific and caches data in Supabase for reliability and API efficiency.
 
-## Setup Instructions
-1. Install dependencies:
-`cd client && npm install`
-`cd ../server && npm install`
-
-2. Configure environment variables:
-- Set `calendarific_API_KEY`
-- Set `SUPABASE_URL`
-- Set `SUPABASE_SERVICE_ROLE_KEY`
-- Set optional `MET_NO_USER_AGENT` (recommended with contact/app info)
-
-3. Start both backend and frontend in development:
-Backend:
-`cd server && npm run dev`
-
-Frontend:
-`cd client && npm run dev`
-
-4. Open:
-`http://localhost:5173`
-
-Production commands:
-- Build frontend: `cd client && npm run build`
-- Start server: `cd server && npm start`
-- Run tests: `cd client && npm test`
 
 ## API Usage
 The backend exposes:
@@ -66,13 +41,6 @@ System Testing:
   Location detection -> API request -> Supabase-backed data retrieval -> UI-ready filtering
 - Verified API behavior for health, valid requests, and invalid date handling
 
-## Build and Deployment
-- Build the frontend with `cd client && npm run build`.
-- Deploy static frontend (e.g., Vercel/Netlify) and run backend as Node service.
-- Ensure HTTPS is enabled at hosting/platform level.
-- Configure `CORS_ORIGIN` to only trusted frontend domains.
-- Provide required env vars from `.env.example` in host secrets.
-- Configure platform-level gzip/brotli and cache headers for static assets.
 
 ## Project Structure
 - `client/src/` frontend React app

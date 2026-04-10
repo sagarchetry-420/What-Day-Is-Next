@@ -41,6 +41,11 @@ body {
   min-height: 100%;
 }
 
+body.pwa-install-open #root {
+  filter: blur(8px);
+  transition: filter 0.22s ease-out;
+}
+
 body {
   margin: 0;
   background: var(--bg-primary);
@@ -217,7 +222,7 @@ body {
 .pwa-install-overlay {
   position: fixed;
   inset: 0;
-  z-index: 60;
+  z-index: 9999;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -238,6 +243,12 @@ body {
   backdrop-filter: blur(16px);
   box-shadow: 0 16px 50px rgba(0, 0, 0, 0.35);
   animation: pwa-modal-pop-in 0.24s ease-out;
+}
+
+@supports not ((backdrop-filter: blur(8px)) or (-webkit-backdrop-filter: blur(8px))) {
+  .pwa-install-overlay {
+    background: rgba(0, 0, 0, 0.55);
+  }
 }
 
 @keyframes pwa-overlay-fade-in {
