@@ -998,7 +998,9 @@ app.get('/api/weather/tomorrow', weatherRateLimiter, async (req, res) => {
 app.get('/api/health', (_req, res) => {
   res.json({ ok: true });
 });
-
+app.get('/ping', (req, res) => {
+  res.send('pong');
+});
 setInterval(() => {
   const now = Date.now();
   for (const [key, entry] of rateLimitStore.entries()) {
